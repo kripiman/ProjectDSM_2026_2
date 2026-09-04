@@ -1,0 +1,9 @@
+.env
+node_modules/
+*.log
+*.sqlite*
+uploads/
+graphify-out/
+AGENTS.md
+.agents/
+docs/

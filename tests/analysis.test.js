@@ -10,14 +10,14 @@ describe('Automated Analysis & Fallback Pipeline APIs (HU-03, HU-04, HU-05, HU-0
   let analysisId = '';
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/v1/auth/anonymous');
+    const res = await request(app).post('/auth/anonymous');
     authToken = res.body.data.token;
   });
 
-  test('POST /api/v1/analysis - Should reject non-specimen image with HTTP 422 (422 NON SPECIMEN IMAGE)', async () => {
+  test('POST /analysis - Should reject non-specimen image with HTTP 422 (422 NON SPECIMEN IMAGE)', async () => {
     const filePath = path.resolve(__dirname, 'fixtures/not_a_rock.jpg');
     const res = await request(app)
-      .post('/api/v1/analysis')
+      .post('/analysis')
       .set('Authorization', `Bearer ${authToken}`)
       .attach('image', filePath)
       .expect(422);
@@ -28,10 +28,10 @@ describe('Automated Analysis & Fallback Pipeline APIs (HU-03, HU-04, HU-05, HU-0
     expect(res.body.message).toContain('422 NON SPECIMEN IMAGE');
   });
 
-  test('POST /api/v1/analysis - Should analyze valid specimen and execute heuristic fallback', async () => {
+  test('POST /analysis - Should analyze valid specimen and execute heuristic fallback', async () => {
     const filePath = path.resolve(__dirname, 'fixtures/sample_rock.jpg');
     const res = await request(app)
-      .post('/api/v1/analysis')
+      .post('/analysis')
       .set('Authorization', `Bearer ${authToken}`)
       .attach('image', filePath)
       .expect(200);
@@ -45,9 +45,9 @@ describe('Automated Analysis & Fallback Pipeline APIs (HU-03, HU-04, HU-05, HU-0
     analysisId = res.body.data.analysis_id;
   });
 
-  test('GET /api/v1/analysis/:id - Should retrieve analysis details and explanation (HU-05)', async () => {
+  test('GET /analysis/:id - Should retrieve analysis details and explanation (HU-05)', async () => {
     const res = await request(app)
-      .get(`/api/v1/analysis/${analysisId}`)
+      .get(`/analysis/${analysisId}`)
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
@@ -57,9 +57,9 @@ describe('Automated Analysis & Fallback Pipeline APIs (HU-03, HU-04, HU-05, HU-0
     expect(res.body.data.educational_explanation).toBeDefined();
   });
 
-  test('POST /api/v1/analysis/:id/refine - Should submit physical refinement answers (HU-06)', async () => {
+  test('POST /analysis/:id/refine - Should submit physical refinement answers (HU-06)', async () => {
     const res = await request(app)
-      .post(`/api/v1/analysis/${analysisId}/refine`)
+      .post(`/analysis/${analysisId}/refine`)
       .set('Authorization', `Bearer ${authToken}`)
       .send({
         answers: [
@@ -74,9 +74,9 @@ describe('Automated Analysis & Fallback Pipeline APIs (HU-03, HU-04, HU-05, HU-0
     expect(res.body.data.updated_candidates.length).toBeGreaterThanOrEqual(1);
   });
 
-  test('POST /api/v1/feedback/:id - Should submit user feedback on analysis accuracy (HU-16)', async () => {
+  test('POST /feedback/:id - Should submit user feedback on analysis accuracy (HU-16)', async () => {
     const res = await request(app)
-      .post(`/api/v1/feedback/${analysisId}`)
+      .post(`/feedback/${analysisId}`)
       .set('Authorization', `Bearer ${authToken}`)
       .send({
         rating: 'correct',

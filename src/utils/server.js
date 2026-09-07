@@ -41,8 +41,8 @@ class Server {
       }, 'Service healthy');
     });
 
-    // API Routes v1
-    this.app.use('/api/v1', apiRouter);
+    // API Routes
+    this.app.use('/', apiRouter);
 
     // 404 Fallback
     this.app.use((req, res, next) => {

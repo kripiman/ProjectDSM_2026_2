@@ -10,13 +10,13 @@ describe('Educational Quizzes APIs (HT-01, HT-02)', () => {
   let questions = [];
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/v1/auth/anonymous');
+    const res = await request(app).post('/auth/anonymous');
     authToken = res.body.data.token;
   });
 
-  test('GET /api/v1/quiz - Should list available quizzes', async () => {
+  test('GET /quiz - Should list available quizzes', async () => {
     const res = await request(app)
-      .get('/api/v1/quiz')
+      .get('/quiz')
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
@@ -26,9 +26,9 @@ describe('Educational Quizzes APIs (HT-01, HT-02)', () => {
     quizId = res.body.data[0].id;
   });
 
-  test('GET /api/v1/quiz/:id - Should retrieve quiz questions with options', async () => {
+  test('GET /quiz/:id - Should retrieve quiz questions with options', async () => {
     const res = await request(app)
-      .get(`/api/v1/quiz/${quizId}`)
+      .get(`/quiz/${quizId}`)
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
@@ -37,14 +37,14 @@ describe('Educational Quizzes APIs (HT-01, HT-02)', () => {
     questions = res.body.data.questions;
   });
 
-  test('POST /api/v1/quiz/:id/submit - Should evaluate answers, calculate score, and grant XP', async () => {
+  test('POST /quiz/:id/submit - Should evaluate answers, calculate score, and grant XP', async () => {
     const answers = questions.map(q => ({
       question_id: q.id,
       selected_option_index: 0 // sample submission
     }));
 
     const res = await request(app)
-      .post(`/api/v1/quiz/${quizId}/submit`)
+      .post(`/quiz/${quizId}/submit`)
       .set('Authorization', `Bearer ${authToken}`)
       .send({ answers })
       .expect(200);

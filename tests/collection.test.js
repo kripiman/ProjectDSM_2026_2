@@ -9,13 +9,13 @@ describe('Collection & Gamification Progress APIs (HU-07, HU-11, HU-12, HU-13, H
   let collectionItemId = '';
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/v1/auth/anonymous');
+    const res = await request(app).post('/auth/anonymous');
     authToken = res.body.data.token;
   });
 
-  test('POST /api/v1/collection - Should add a discovered specimen to personal collection (HU-07)', async () => {
+  test('POST /collection - Should add a discovered specimen to personal collection (HU-07)', async () => {
     const res = await request(app)
-      .post('/api/v1/collection')
+      .post('/collection')
       .set('Authorization', `Bearer ${authToken}`)
       .send({
         specimen_id: 'quartz',
@@ -32,9 +32,9 @@ describe('Collection & Gamification Progress APIs (HU-07, HU-11, HU-12, HU-13, H
     collectionItemId = res.body.data.collection_item.id;
   });
 
-  test('GET /api/v1/collection - Should retrieve user collection', async () => {
+  test('GET /collection - Should retrieve user collection', async () => {
     const res = await request(app)
-      .get('/api/v1/collection')
+      .get('/collection')
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
@@ -43,9 +43,9 @@ describe('Collection & Gamification Progress APIs (HU-07, HU-11, HU-12, HU-13, H
     expect(res.body.data[0].specimen.id).toBe('quartz');
   });
 
-  test('GET /api/v1/collection?include_locked=true - Should return discovered and locked items (HU-12)', async () => {
+  test('GET /collection?include_locked=true - Should return discovered and locked items (HU-12)', async () => {
     const res = await request(app)
-      .get('/api/v1/collection?include_locked=true')
+      .get('/collection?include_locked=true')
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
@@ -58,9 +58,9 @@ describe('Collection & Gamification Progress APIs (HU-07, HU-11, HU-12, HU-13, H
     expect(obsidian.is_discovered).toBe(false); // locked
   });
 
-  test('GET /api/v1/collection/progress - Should calculate category breakdown progress (HU-13)', async () => {
+  test('GET /collection/progress - Should calculate category breakdown progress (HU-13)', async () => {
     const res = await request(app)
-      .get('/api/v1/collection/progress')
+      .get('/collection/progress')
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
@@ -71,9 +71,9 @@ describe('Collection & Gamification Progress APIs (HU-07, HU-11, HU-12, HU-13, H
     expect(res.body.data.categories.igneous_rock.discovered).toBe(0);
   });
 
-  test('GET /api/v1/achievement - Should list achievements and user progress (HU-14)', async () => {
+  test('GET /achievement - Should list achievements and user progress (HU-14)', async () => {
     const res = await request(app)
-      .get('/api/v1/achievement')
+      .get('/achievement')
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
@@ -81,9 +81,9 @@ describe('Collection & Gamification Progress APIs (HU-07, HU-11, HU-12, HU-13, H
     expect(res.body.data.length).toBeGreaterThanOrEqual(3);
   });
 
-  test('DELETE /api/v1/collection/:id - Should remove an item from collection', async () => {
+  test('DELETE /collection/:id - Should remove an item from collection', async () => {
     const res = await request(app)
-      .delete(`/api/v1/collection/${collectionItemId}`)
+      .delete(`/collection/${collectionItemId}`)
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 

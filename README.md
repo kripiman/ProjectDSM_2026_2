@@ -245,7 +245,7 @@ ProjectDSM_2026_2/
 
 ## Documentación de la API
 
-Todas las rutas públicas y protegidas se exponen bajo el prefijo unificado `/api/v1`. Las respuestas exitosas y de error emplean una estructura JSON uniforme:
+Todas las rutas públicas y protegidas se exponen de forma directa y limpia bajo la raíz (`/`). Las respuestas exitosas y de error emplean una estructura JSON uniforme:
 
 ```json
 {
@@ -255,70 +255,70 @@ Todas las rutas públicas y protegidas se exponen bajo el prefijo unificado `/ap
 }
 ```
 
-### 1. Autenticación (`/api/v1/auth`)
+### 1. Autenticación (`/auth`)
 
 | Método | Endpoint | Autenticación | Descripción |
 |---|---|:---:|---|
-| `POST` | `/api/v1/auth/anonymous` | No | Crea una sesión anónima de invitado y devuelve un token JWT temporal. |
-| `POST` | `/api/v1/auth/register` | No | Registra una cuenta formal (`email`, `password`, `username`) y migra colecciones anónimas previas asociadas al token. |
-| `POST` | `/api/v1/auth/login` | No | Autentica un usuario registrado mediante credenciales y genera un token JWT. |
-| `DELETE` | `/api/v1/auth/account` | Bearer Token | Ejecuta la baja lógica (*soft delete*) de la cuenta del usuario autenticado. |
+| `POST` | `/auth/anonymous` | No | Crea una sesión anónima de invitado y devuelve un token JWT temporal. |
+| `POST` | `/auth/register` | No | Registra una cuenta formal (`email`, `password`, `username`) y migra colecciones anónimas previas asociadas al token. |
+| `POST` | `/auth/login` | No | Autentica un usuario registrado mediante credenciales y genera un token JWT. |
+| `DELETE` | `/auth/account` | Bearer Token | Ejecuta la baja lógica (*soft delete*) de la cuenta del usuario autenticado. |
 
-### 2. Perfil y Preferencias de Usuario (`/api/v1/user`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `GET` | `/api/v1/user/profile` | Bearer Token | Obtiene la información del perfil del usuario en sesión. |
-| `GET` | `/api/v1/user/preferences` | Bearer Token | Consulta las configuraciones y preferencias personalizadas del usuario. |
-| `PUT` | `/api/v1/user/preferences` | Bearer Token | Actualiza las preferencias del usuario (notificaciones, unidades, etc.). |
-
-### 3. Catálogo de Especímenes (`/api/v1/specimen`)
+### 2. Perfil y Preferencias de Usuario (`/user`)
 
 | Método | Endpoint | Autenticación | Descripción |
 |---|---|:---:|---|
-| `GET` | `/api/v1/specimen` | No | Retorna el catálogo con soporte de paginación y filtros (`type`, `hardness`, búsqueda textual). |
-| `GET` | `/api/v1/specimen/categories` | No | Provee métricas y conteo de especímenes agrupados por clases taxonómicas. |
-| `GET` | `/api/v1/specimen/:id` | No | Entrega la ficha técnica completa de un mineral o roca por su identificador UUID. |
+| `GET` | `/user/profile` | Bearer Token | Obtiene la información del perfil del usuario en sesión. |
+| `GET` | `/user/preferences` | Bearer Token | Consulta las configuraciones y preferencias personalizadas del usuario. |
+| `PUT` | `/user/preferences` | Bearer Token | Actualiza las preferencias del usuario (notificaciones, unidades, etc.). |
 
-### 4. Análisis e Identificación (`/api/v1/analysis`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `POST` | `/api/v1/analysis` | Bearer Token | Recibe una imagen (`multipart/form-data`, campo `image`), valida que sea un espécimen válido y ejecuta el pipeline de identificación. |
-| `GET` | `/api/v1/analysis/:id` | Bearer Token | Consulta el resultado de un análisis previo, lista de candidatos y niveles de confianza calculados. |
-| `POST` | `/api/v1/analysis/:id/refine` | Bearer Token | Envía atributos físicos observados (dureza, raya, magnetismo) para refinar y desempatar los candidatos clasificados. |
-
-> **Nota**: Si la imagen enviada a `POST /api/v1/analysis` no corresponde a un mineral o roca reconocible, el servidor responde con código `422 Unprocessable Entity` y el mensaje estructurado `NON_SPECIMEN_IMAGE`.
-
-### 5. Colección Personal (`/api/v1/collection`)
+### 3. Catálogo de Especímenes (`/specimen`)
 
 | Método | Endpoint | Autenticación | Descripción |
 |---|---|:---:|---|
-| `POST` | `/api/v1/collection` | Bearer Token | Agrega un espécimen identificado a la colección del usuario activo. |
-| `GET` | `/api/v1/collection` | Bearer Token | Lista los especímenes descubiertos y bloqueados en la colección del usuario. |
-| `GET` | `/api/v1/collection/progress` | Bearer Token | Calcula el porcentaje de completitud de la colección clasificado por categorías geológicas. |
-| `DELETE` | `/api/v1/collection/:id` | Bearer Token | Elimina una muestra registrada de la colección del usuario. |
+| `GET` | `/specimen` | No | Retorna el catálogo con soporte de paginación y filtros (`type`, `hardness`, búsqueda textual). |
+| `GET` | `/specimen/categories` | No | Provee métricas y conteo de especímenes agrupados por clases taxonómicas. |
+| `GET` | `/specimen/:id` | No | Entrega la ficha técnica completa de un mineral o roca por su identificador UUID. |
 
-### 6. Cuestionarios Educativos (`/api/v1/quiz`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `GET` | `/api/v1/quiz` | Bearer Token | Obtiene la lista de cuestionarios disponibles clasificados por nivel de dificultad. |
-| `GET` | `/api/v1/quiz/:id` | Bearer Token | Obtiene las preguntas y opciones de un cuestionario específico. |
-| `POST` | `/api/v1/quiz/:id/submit` | Bearer Token | Evalúa las respuestas enviadas, calcula el puntaje obtenido y acredita puntos de experiencia (XP). |
-
-### 7. Logros y Gamificación (`/api/v1/achievement`)
+### 4. Análisis e Identificación (`/analysis`)
 
 | Método | Endpoint | Autenticación | Descripción |
 |---|---|:---:|---|
-| `GET` | `/api/v1/achievement` | Bearer Token | Consulta el listado de logros del sistema con el estado de desbloqueo y progreso del usuario. |
+| `POST` | `/analysis` | Bearer Token | Recibe una imagen (`multipart/form-data`, campo `image`), valida que sea un espécimen válido y ejecuta el pipeline de identificación. |
+| `GET` | `/analysis/:id` | Bearer Token | Consulta el resultado de un análisis previo, lista de candidatos y niveles de confianza calculados. |
+| `POST` | `/analysis/:id/refine` | Bearer Token | Envía atributos físicos observados (dureza, raya, magnetismo) para refinar y desempatar los candidatos clasificados. |
 
-### 8. Feedback y Telemetría (`/api/v1/feedback`, `/api/v1/event`)
+> **Nota**: Si la imagen enviada a `POST /analysis` no corresponde a un mineral o roca reconocible, el servidor responde con código `422 Unprocessable Entity` y el mensaje estructurado `NON_SPECIMEN_IMAGE`.
+
+### 5. Colección Personal (`/collection`)
 
 | Método | Endpoint | Autenticación | Descripción |
 |---|---|:---:|---|
-| `POST` | `/api/v1/feedback/:id` | Opcional | Permite al usuario calificar la precisión del análisis obtenido (`accuracy_rating`, comentarios). |
-| `POST` | `/api/v1/event` | Opcional | Registra eventos de telemetría e interacción dentro de la plataforma. |
+| `POST` | `/collection` | Bearer Token | Agrega un espécimen identificado a la colección del usuario activo. |
+| `GET` | `/collection` | Bearer Token | Lista los especímenes descubiertos y bloqueados en la colección del usuario. |
+| `GET` | `/collection/progress` | Bearer Token | Calcula el porcentaje de completitud de la colección clasificado por categorías geológicas. |
+| `DELETE` | `/collection/:id` | Bearer Token | Elimina una muestra registrada de la colección del usuario. |
+
+### 6. Cuestionarios Educativos (`/quiz`)
+
+| Método | Endpoint | Autenticación | Descripción |
+|---|---|:---:|---|
+| `GET` | `/quiz` | Bearer Token | Obtiene la lista de cuestionarios disponibles clasificados por nivel de dificultad. |
+| `GET` | `/quiz/:id` | Bearer Token | Obtiene las preguntas y opciones de un cuestionario específico. |
+| `POST` | `/quiz/:id/submit` | Bearer Token | Evalúa las respuestas enviadas, calcula el puntaje obtenido y acredita puntos de experiencia (XP). |
+
+### 7. Logros y Gamificación (`/achievement`)
+
+| Método | Endpoint | Autenticación | Descripción |
+|---|---|:---:|---|
+| `GET` | `/achievement` | Bearer Token | Consulta el listado de logros del sistema con el estado de desbloqueo y progreso del usuario. |
+
+### 8. Feedback y Telemetría (`/feedback`, `/event`)
+
+| Método | Endpoint | Autenticación | Descripción |
+|---|---|:---:|---|
+| `POST` | `/feedback/:id` | Opcional | Permite al usuario calificar la precisión del análisis obtenido (`accuracy_rating`, comentarios). |
+| `POST` | `/event` | Opcional | Registra eventos de telemetría e interacción dentro de la plataforma. |
 
 ---
 

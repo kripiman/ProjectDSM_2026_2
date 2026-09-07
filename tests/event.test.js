@@ -8,13 +8,13 @@ describe('Activity & Telemetry Events API (HT-04)', () => {
   let authToken = '';
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/v1/auth/anonymous');
+    const res = await request(app).post('/auth/anonymous');
     authToken = res.body.data.token;
   });
 
-  test('POST /api/v1/event - Should record user activity telemetry', async () => {
+  test('POST /event - Should record user activity telemetry', async () => {
     const res = await request(app)
-      .post('/api/v1/event')
+      .post('/event')
       .set('Authorization', `Bearer ${authToken}`)
       .send({
         event_type: 'specimen_viewed',

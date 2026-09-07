@@ -9,9 +9,9 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
   let guestUserId = '';
   let registeredToken = '';
 
-  test('POST /api/v1/auth/anonymous - Should create an anonymous guest session', async () => {
+  test('POST /auth/anonymous - Should create an anonymous guest session', async () => {
     const res = await request(app)
-      .post('/api/v1/auth/anonymous')
+      .post('/auth/anonymous')
       .expect(201);
 
     expect(res.body.success).toBe(true);
@@ -23,10 +23,10 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
     guestUserId = res.body.data.user.id;
   });
 
-  test('POST /api/v1/auth/register - Should register account and migrate guest session', async () => {
+  test('POST /auth/register - Should register account and migrate guest session', async () => {
     const email = `testuser_${Date.now()}@example.com`;
     const res = await request(app)
-      .post('/api/v1/auth/register')
+      .post('/auth/register')
       .send({
         email,
         password: 'Password123!',
@@ -44,11 +44,11 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
     registeredToken = res.body.data.token;
   });
 
-  test('POST /api/v1/auth/login - Should authenticate existing registered user', async () => {
+  test('POST /auth/login - Should authenticate existing registered user', async () => {
     // Register another user
     const email = `login_test_${Date.now()}@example.com`;
     await request(app)
-      .post('/api/v1/auth/register')
+      .post('/auth/register')
       .send({
         email,
         password: 'SecurePassword123!'
@@ -56,7 +56,7 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
       .expect(201);
 
     const res = await request(app)
-      .post('/api/v1/auth/login')
+      .post('/auth/login')
       .send({
         email,
         password: 'SecurePassword123!'
@@ -68,9 +68,9 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
     expect(res.body.data.user.email).toBe(email);
   });
 
-  test('GET /api/v1/user/preferences - Should retrieve user preferences', async () => {
+  test('GET /user/preferences - Should retrieve user preferences', async () => {
     const res = await request(app)
-      .get('/api/v1/user/preferences')
+      .get('/user/preferences')
       .set('Authorization', `Bearer ${registeredToken}`)
       .expect(200);
 
@@ -79,9 +79,9 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
     expect(res.body.data.theme).toBe('system');
   });
 
-  test('PUT /api/v1/user/preferences - Should update user preferences (HU-15)', async () => {
+  test('PUT /user/preferences - Should update user preferences (HU-15)', async () => {
     const res = await request(app)
-      .put('/api/v1/user/preferences')
+      .put('/user/preferences')
       .set('Authorization', `Bearer ${registeredToken}`)
       .send({
         theme: 'dark',
@@ -96,9 +96,9 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
     expect(res.body.data.language).toBe('en');
   });
 
-  test('DELETE /api/v1/auth/account - Should soft delete user account (HU-17)', async () => {
+  test('DELETE /auth/account - Should soft delete user account (HU-17)', async () => {
     const res = await request(app)
-      .delete('/api/v1/auth/account')
+      .delete('/auth/account')
       .set('Authorization', `Bearer ${registeredToken}`)
       .expect(200);
 

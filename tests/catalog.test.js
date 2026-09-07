@@ -5,9 +5,9 @@ const server = new Server();
 const app = server.app;
 
 describe('Catalog & Taxonomy APIs (HU-08, HU-09, HU-10, HU-13)', () => {
-  test('GET /api/v1/specimen - Should list specimens with pagination', async () => {
+  test('GET /specimen - Should list specimens with pagination', async () => {
     const res = await request(app)
-      .get('/api/v1/specimen?page=1&limit=5')
+      .get('/specimen?page=1&limit=5')
       .expect(200);
 
     expect(res.body.success).toBe(true);
@@ -15,9 +15,9 @@ describe('Catalog & Taxonomy APIs (HU-08, HU-09, HU-10, HU-13)', () => {
     expect(res.body.data.total).toBeGreaterThanOrEqual(12);
   });
 
-  test('GET /api/v1/specimen?category=mineral - Should filter by category', async () => {
+  test('GET /specimen?category=mineral - Should filter by category', async () => {
     const res = await request(app)
-      .get('/api/v1/specimen?category=mineral')
+      .get('/specimen?category=mineral')
       .expect(200);
 
     expect(res.body.success).toBe(true);
@@ -26,9 +26,9 @@ describe('Catalog & Taxonomy APIs (HU-08, HU-09, HU-10, HU-13)', () => {
     });
   });
 
-  test('GET /api/v1/specimen?q=Cuarzo - Should search by keyword', async () => {
+  test('GET /specimen?q=Cuarzo - Should search by keyword', async () => {
     const res = await request(app)
-      .get('/api/v1/specimen?q=Cuarzo')
+      .get('/specimen?q=Cuarzo')
       .expect(200);
 
     expect(res.body.success).toBe(true);
@@ -36,9 +36,9 @@ describe('Catalog & Taxonomy APIs (HU-08, HU-09, HU-10, HU-13)', () => {
     expect(res.body.data.specimens[0].id).toBe('quartz');
   });
 
-  test('GET /api/v1/specimen/:id - Should retrieve full profile with Mohs and tips (HU-10)', async () => {
+  test('GET /specimen/:id - Should retrieve full profile with Mohs and tips (HU-10)', async () => {
     const res = await request(app)
-      .get('/api/v1/specimen/pyrite')
+      .get('/specimen/pyrite')
       .expect(200);
 
     expect(res.body.success).toBe(true);
@@ -48,9 +48,9 @@ describe('Catalog & Taxonomy APIs (HU-08, HU-09, HU-10, HU-13)', () => {
     expect(res.body.data.identification_tips).toBeDefined();
   });
 
-  test('GET /api/v1/specimen/categories - Should retrieve category breakdown (HU-13)', async () => {
+  test('GET /specimen/categories - Should retrieve category breakdown (HU-13)', async () => {
     const res = await request(app)
-      .get('/api/v1/specimen/categories')
+      .get('/specimen/categories')
       .expect(200);
 
     expect(res.body.success).toBe(true);

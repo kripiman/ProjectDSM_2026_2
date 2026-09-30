@@ -1,19 +1,11 @@
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { uuidv4 } = require('../utils/uuid');
 const env = require('../config/env');
 const { USER_ROLES, ERROR_CODES } = require('../config/constants');
 const { AppError } = require('../middlewares/error.middleware');
 const { successResponse } = require('../utils/response_formatter');
+const { generateToken, verifyToken } = require('../services/token.service');
 const { User, UserPreference, CollectionItem, Analysis, UserAchievement, sequelize } = require('../models');
-
-const generateToken = (userId, role, isAnonymous) => {
-  return jwt.sign(
-    { userId, role, isAnonymous },
-    env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN }
-  );
-};
 
 const createAnonymousSession = async (req, res, next) => {
   try {
@@ -52,7 +44,8 @@ const createAnonymousSession = async (req, res, next) => {
 const register = async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
-    const { email, password, display_name, guest_token } = req.body;
+    const { email, password, display_name, userName, username, phone, guest_token } = req.body;
+    const resolvedUserName = userName || username || null;
 
     if (!email || !password) {
       throw new AppError(400, 'Email and password are required', ERROR_CODES.VALIDATION_ERROR);
@@ -63,13 +56,20 @@ const register = async (req, res, next) => {
       throw new AppError(400, 'Email is already registered', ERROR_CODES.VALIDATION_ERROR);
     }
 
+    if (resolvedUserName) {
+      const existingUserName = await User.findOne({ where: { userName: resolvedUserName }, transaction: t });
+      if (existingUserName) {
+        throw new AppError(400, 'Username is already taken', ERROR_CODES.VALIDATION_ERROR);
+      }
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     let guestUserId = null;
 
     // Check if guest token was provided for migration (HU-11)
     if (guest_token) {
       try {
-        const decoded = jwt.verify(guest_token, env.JWT_SECRET);
+        const decoded = verifyToken(guest_token);
         guestUserId = decoded.userId;
       } catch (err) {
         // Token expired or invalid, proceed without guest migration
@@ -83,8 +83,10 @@ const register = async (req, res, next) => {
       if (guestRecord && guestRecord.is_anonymous) {
         // Upgrade guest user to registered account
         guestRecord.email = email;
+        if (resolvedUserName) guestRecord.userName = resolvedUserName;
+        if (phone) guestRecord.phone = phone;
         guestRecord.password_hash = passwordHash;
-        guestRecord.display_name = display_name || guestRecord.display_name;
+        guestRecord.display_name = display_name || resolvedUserName || guestRecord.display_name;
         guestRecord.is_anonymous = false;
         guestRecord.role = USER_ROLES.USER;
         await guestRecord.save({ transaction: t });
@@ -97,8 +99,10 @@ const register = async (req, res, next) => {
       newUser = await User.create({
         id: userId,
         email,
+        userName: resolvedUserName,
+        phone: phone || null,
         password_hash: passwordHash,
-        display_name: display_name || email.split('@')[0],
+        display_name: display_name || resolvedUserName || email.split('@')[0],
         is_anonymous: false,
         role: USER_ROLES.USER
       }, { transaction: t });
@@ -119,6 +123,8 @@ const register = async (req, res, next) => {
       user: {
         id: newUser.id,
         email: newUser.email,
+        userName: newUser.userName,
+        phone: newUser.phone,
         display_name: newUser.display_name,
         is_anonymous: false,
         role: newUser.role,
@@ -157,6 +163,8 @@ const login = async (req, res, next) => {
       user: {
         id: user.id,
         email: user.email,
+        userName: user.userName,
+        phone: user.phone,
         display_name: user.display_name,
         is_anonymous: user.is_anonymous,
         role: user.role,

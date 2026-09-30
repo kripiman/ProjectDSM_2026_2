@@ -1,8 +1,10 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { FEEDBACK_RATINGS } = require('../config/constants');
 
-const Feedback = sequelize.define('feedback', {
+class Feedback extends Model {}
+
+Feedback.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true
@@ -46,6 +48,8 @@ const Feedback = sequelize.define('feedback', {
     allowNull: true
   }
 }, {
+  sequelize,
+  modelName: 'Feedback',
   tableName: 'feedback',
   timestamps: true,
   underscored: true

@@ -1,11 +1,34 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { SPECIMEN_CATEGORIES, SPECIMEN_RARITIES } = require('../config/constants');
 
-const Specimen = sequelize.define('specimen', {
+class Specimen extends Model {}
+
+Specimen.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true // Slug or UUID (e.g. 'quartz', 'pyrite', 'basalt')
+  },
+  catalog_index: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    unique: true
+  },
+  category_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'category',
+      key: 'id'
+    }
+  },
+  type_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'type',
+      key: 'id'
+    }
   },
   name_es: {
     type: DataTypes.STRING,
@@ -54,6 +77,22 @@ const Specimen = sequelize.define('specimen', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  texture: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  transparency: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
+  tenacity: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
+  density: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
   crystal_system: {
     type: DataTypes.STRING,
     allowNull: true
@@ -75,7 +114,23 @@ const Specimen = sequelize.define('specimen', {
     type: DataTypes.FLOAT,
     allowNull: true
   },
+  molar_weight: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
+  composition: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   chemical_formula: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  environment: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  common_uses: {
     type: DataTypes.STRING,
     allowNull: true
   },
@@ -95,15 +150,39 @@ const Specimen = sequelize.define('specimen', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  mindat_url: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   is_active: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
     defaultValue: true
+  },
+  is_deleted: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  deleted_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
+  sequelize,
+  modelName: 'Specimen',
   tableName: 'specimen',
+  paranoid: true,
   timestamps: true,
-  underscored: true
+  underscored: true,
+  hooks: {
+    beforeDestroy: (instance) => {
+      instance.is_deleted = true;
+    },
+    beforeRestore: (instance) => {
+      instance.is_deleted = false;
+    }
+  }
 });
 
 module.exports = Specimen;

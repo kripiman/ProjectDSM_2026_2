@@ -1,7 +1,9 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const CollectionItem = sequelize.define('collection_item', {
+class CollectionItem extends Model {}
+
+CollectionItem.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true
@@ -52,6 +54,8 @@ const CollectionItem = sequelize.define('collection_item', {
     defaultValue: false
   }
 }, {
+  sequelize,
+  modelName: 'CollectionItem',
   tableName: 'collection_item',
   timestamps: true,
   underscored: true,

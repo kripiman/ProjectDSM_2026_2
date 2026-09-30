@@ -3,7 +3,13 @@ const fs = require('fs');
 const { Sequelize } = require('sequelize');
 const env = require('./env');
 
-const storagePath = path.resolve(process.cwd(), env.DATABASE_STORAGE);
+const isTest = env.NODE_ENV === 'test' || process.env.NODE_ENV === 'test';
+const storagePath = path.resolve(
+  process.cwd(),
+  isTest && (!process.env.DATABASE_STORAGE || process.env.DATABASE_STORAGE === './rock.sqlite')
+    ? './rock.test.sqlite'
+    : env.DATABASE_STORAGE
+);
 const dbDir = path.dirname(storagePath);
 
 if (!fs.existsSync(dbDir)) {
@@ -13,7 +19,7 @@ if (!fs.existsSync(dbDir)) {
 const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: storagePath,
-  logging: env.NODE_ENV === 'test' ? false : (msg) => console.log(`[Sequelize] ${msg}`),
+  logging: isTest ? false : (msg) => console.log(`[Sequelize] ${msg}`),
   define: {
     timestamps: true,
     underscored: true,
@@ -27,7 +33,9 @@ const connectDB = async () => {
     // Enforce SQLite Foreign Keys
     await sequelize.query('PRAGMA foreign_keys = ON;');
     await sequelize.query('PRAGMA journal_mode = WAL;');
-    console.log(`[Database] SQLite connected successfully at: ${storagePath}`);
+    if (!isTest) {
+      console.log(`[Database] SQLite connected successfully at: ${storagePath}`);
+    }
   } catch (error) {
     console.error('[Database] SQLite connection failure:', error.message);
     throw error;

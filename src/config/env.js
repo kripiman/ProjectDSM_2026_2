@@ -1,10 +1,12 @@
 require('dotenv').config();
 
+const isTest = process.env.NODE_ENV === 'test';
+
 const env = {
   PORT: parseInt(process.env.PORT, 10) || 8080,
   NODE_ENV: process.env.NODE_ENV || 'development',
-  DATABASE_STORAGE: process.env.DATABASE_STORAGE || './rock.sqlite',
-  DATABASE_NAME: process.env.DATABASE_NAME || 'rock',
+  DATABASE_STORAGE: process.env.DATABASE_STORAGE || (isTest ? './rock.test.sqlite' : './rock.sqlite'),
+  DATABASE_NAME: process.env.DATABASE_NAME || (isTest ? 'rock_test' : 'rock'),
   JWT_SECRET: process.env.JWT_SECRET || 'default_jwt_secret_dev_rock_app_2026',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '30d',
   ML_SERVER_URL: process.env.ML_SERVER_URL || 'http://localhost:5000',

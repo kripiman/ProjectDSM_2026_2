@@ -1,7 +1,9 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const Achievement = sequelize.define('achievement', {
+class Achievement extends Model {}
+
+Achievement.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true
@@ -43,6 +45,8 @@ const Achievement = sequelize.define('achievement', {
     defaultValue: true
   }
 }, {
+  sequelize,
+  modelName: 'Achievement',
   tableName: 'achievement',
   timestamps: true,
   underscored: true

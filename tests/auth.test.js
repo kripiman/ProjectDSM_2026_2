@@ -104,4 +104,27 @@ describe('Authentication & User Management APIs (HU-01, HU-02, HU-11, HU-15, HU-
 
     expect(res.body.success).toBe(true);
   });
+
+  test('POST /auth/register - Should register user with userName and phone matching class schema', async () => {
+    const timestamp = Date.now();
+    const email = `class_user_${timestamp}@example.com`;
+    const userName = `rockexpert_${timestamp}`;
+    const phone = `+569${timestamp.toString().slice(-8)}`;
+
+    const res = await request(app)
+      .post('/auth/register')
+      .send({
+        email,
+        password: 'Password123!',
+        userName,
+        phone
+      })
+      .expect(201);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.user.userName).toBe(userName);
+    expect(res.body.data.user.phone).toBe(phone);
+    expect(res.body.data.user.password).toBeUndefined();
+    expect(res.body.data.user.password_hash).toBeUndefined();
+  });
 });

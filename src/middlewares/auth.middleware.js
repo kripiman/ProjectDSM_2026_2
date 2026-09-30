@@ -1,20 +1,18 @@
-const jwt = require('jsonwebtoken');
-const env = require('../config/env');
+const { verifyToken, extractTokenFromHeader } = require('../services/token.service');
 const { AppError } = require('./error.middleware');
 const { ERROR_CODES, USER_ROLES } = require('../config/constants');
 const { User } = require('../models');
 
 const requireAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = extractTokenFromHeader(req.headers.authorization);
+    if (!token) {
       throw new AppError(401, 'Authentication token is required', ERROR_CODES.UNAUTHORIZED);
     }
 
-    const token = authHeader.split(' ')[1];
     let decoded;
     try {
-      decoded = jwt.verify(token, env.JWT_SECRET);
+      decoded = verifyToken(token);
     } catch (err) {
       throw new AppError(401, 'Invalid or expired authentication token', ERROR_CODES.UNAUTHORIZED);
     }
@@ -33,11 +31,10 @@ const requireAuth = async (req, res, next) => {
 
 const optionalAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+    const token = extractTokenFromHeader(req.headers.authorization);
+    if (token) {
       try {
-        const decoded = jwt.verify(token, env.JWT_SECRET);
+        const decoded = verifyToken(token);
         const user = await User.findByPk(decoded.userId);
         if (user) {
           req.user = user;

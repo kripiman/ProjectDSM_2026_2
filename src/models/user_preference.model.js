@@ -1,7 +1,9 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const UserPreference = sequelize.define('user_preference', {
+class UserPreference extends Model {}
+
+UserPreference.init({
   user_id: {
     type: DataTypes.STRING,
     primaryKey: true,
@@ -32,6 +34,8 @@ const UserPreference = sequelize.define('user_preference', {
     defaultValue: true
   }
 }, {
+  sequelize,
+  modelName: 'UserPreference',
   tableName: 'user_preference',
   timestamps: true,
   underscored: true

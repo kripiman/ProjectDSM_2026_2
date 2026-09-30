@@ -1,7 +1,9 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const UserEvent = sequelize.define('user_event', {
+class UserEvent extends Model {}
+
+UserEvent.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true
@@ -17,7 +19,7 @@ const UserEvent = sequelize.define('user_event', {
   },
   event_type: {
     type: DataTypes.STRING,
-    allowNull: false // e.g. 'app_open', 'scan_uploaded', 'scan_success', 'specimen_viewed', 'collection_saved'
+    allowNull: false 
   },
   payload: {
     type: DataTypes.JSON,
@@ -32,6 +34,8 @@ const UserEvent = sequelize.define('user_event', {
     allowNull: true
   }
 }, {
+  sequelize,
+  modelName: 'UserEvent',
   tableName: 'user_event',
   timestamps: true,
   underscored: true

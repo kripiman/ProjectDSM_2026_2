@@ -3,6 +3,9 @@ const { sequelize } = require('../config/database');
 const User = require('./user.model');
 const UserPreference = require('./user_preference.model');
 const Specimen = require('./specimen.model');
+const Category = require('./category.model');
+const Type = require('./type.model');
+const Role = require('./role.model');
 const Analysis = require('./analysis.model');
 const AnalysisCandidate = require('./analysis_candidate.model');
 const AnalysisRefinement = require('./analysis_refinement.model');
@@ -15,6 +18,18 @@ const QuizQuestion = require('./quiz_question.model');
 const UserQuizAttempt = require('./user_quiz_attempt.model');
 const UserEvent = require('./user_event.model');
 const Notification = require('./notification.model');
+
+// Role <-> User
+Role.hasMany(User, { foreignKey: 'role_id', as: 'users', onDelete: 'SET NULL' });
+User.belongsTo(Role, { foreignKey: 'role_id', as: 'role_rel' });
+
+// Category <-> Specimen
+Category.hasMany(Specimen, { foreignKey: 'category_id', as: 'specimens', onDelete: 'SET NULL' });
+Specimen.belongsTo(Category, { foreignKey: 'category_id', as: 'category_rel' });
+
+// Type <-> Specimen
+Type.hasMany(Specimen, { foreignKey: 'type_id', as: 'specimens', onDelete: 'SET NULL' });
+Specimen.belongsTo(Type, { foreignKey: 'type_id', as: 'type_rel' });
 
 // User <-> UserPreference
 User.hasOne(UserPreference, { foreignKey: 'user_id', as: 'preference', onDelete: 'CASCADE' });
@@ -99,8 +114,12 @@ Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 module.exports = {
   sequelize,
   User,
+  Role,
   UserPreference,
   Specimen,
+  Rock: Specimen, // Alias for classroom compatibility
+  Category,
+  Type,
   Analysis,
   AnalysisCandidate,
   AnalysisRefinement,

@@ -1,7 +1,9 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const AnalysisRefinement = sequelize.define('analysis_refinement', {
+class AnalysisRefinement extends Model {}
+
+AnalysisRefinement.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true
@@ -28,6 +30,8 @@ const AnalysisRefinement = sequelize.define('analysis_refinement', {
     defaultValue: 0.0
   }
 }, {
+  sequelize,
+  modelName: 'AnalysisRefinement',
   tableName: 'analysis_refinement',
   timestamps: true,
   underscored: true

@@ -1,11 +1,27 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { USER_ROLES } = require('../config/constants');
 
-const User = sequelize.define('user', {
+class User extends Model {}
+
+User.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true
+  },
+  role_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'role',
+      key: 'id'
+    }
+  },
+  userName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true,
+    field: 'user_name'
   },
   email: {
     type: DataTypes.STRING,
@@ -15,6 +31,11 @@ const User = sequelize.define('user', {
   password_hash: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  phone: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
   },
   display_name: {
     type: DataTypes.STRING,
@@ -44,15 +65,37 @@ const User = sequelize.define('user', {
     allowNull: false,
     defaultValue: 1
   },
+  is_deleted: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
   deleted_at: {
     type: DataTypes.DATE,
     allowNull: true
   }
 }, {
+  sequelize,
+  modelName: 'User',
   tableName: 'user',
-  paranoid: true, // Enables soft deletion using deleted_at (HU-17)
+  paranoid: true,
   timestamps: true,
-  underscored: true
+  underscored: true,
+  hooks: {
+    beforeDestroy: (instance) => {
+      instance.is_deleted = true;
+    },
+    beforeRestore: (instance) => {
+      instance.is_deleted = false;
+    }
+  }
 });
+
+User.prototype.toJSON = function () {
+  const values = { ...this.get() };
+  delete values.password;
+  delete values.password_hash;
+  return values;
+};
 
 module.exports = User;

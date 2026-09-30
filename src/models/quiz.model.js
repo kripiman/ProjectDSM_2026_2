@@ -1,7 +1,9 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const Quiz = sequelize.define('quiz', {
+class Quiz extends Model {}
+
+Quiz.init({
   id: {
     type: DataTypes.STRING,
     primaryKey: true
@@ -34,6 +36,8 @@ const Quiz = sequelize.define('quiz', {
     defaultValue: true
   }
 }, {
+  sequelize,
+  modelName: 'Quiz',
   tableName: 'quiz',
   timestamps: true,
   underscored: true

@@ -1,7 +1,39 @@
 const { SPECIMEN_CATEGORIES, SPECIMEN_RARITIES } = require('../config/constants');
-const { Specimen, Achievement, Quiz, QuizQuestion } = require('../models');
+const { Specimen, Achievement, Quiz, QuizQuestion, Role, Category, Type } = require('../models');
 
 const seedData = async () => {
+  // Seed Roles
+  const rolesCount = await Role.count();
+  if (rolesCount === 0) {
+    await Role.bulkCreate([
+      { id: 1, name: 'guest', description: 'Invitado no registrado' },
+      { id: 2, name: 'user', description: 'Usuario registrado' },
+      { id: 3, name: 'admin', description: 'Administrador' }
+    ]);
+  }
+
+  // Seed Categories
+  const categoriesCount = await Category.count();
+  if (categoriesCount === 0) {
+    await Category.bulkCreate([
+      { id: 1, name: 'mineral', description: 'Minerales' },
+      { id: 2, name: 'igneous_rock', description: 'Rocas Ígneas' },
+      { id: 3, name: 'sedimentary_rock', description: 'Rocas Sedimentarias' },
+      { id: 4, name: 'metamorphic_rock', description: 'Rocas Metamórficas' }
+    ]);
+  }
+
+  // Seed Types
+  const typesCount = await Type.count();
+  if (typesCount === 0) {
+    await Type.bulkCreate([
+      { id: 1, name: 'silicato', description: 'Silicatos' },
+      { id: 2, name: 'oxido', description: 'Óxidos' },
+      { id: 3, name: 'sulfuro', description: 'Sulfuros' },
+      { id: 4, name: 'carbonato', description: 'Carbonatos' }
+    ]);
+  }
+
   const specimensCount = await Specimen.count();
   if (specimensCount === 0) {
     console.log('[Seeders] Seeding initial specimen catalog...');

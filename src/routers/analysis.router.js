@@ -1,12 +1,18 @@
 const { Router } = require('express');
-const { analyzeImage, getAnalysisById, refineAnalysis } = require('../controllers/analysis.controller');
+const { analyzeImage, listMyAnalyses, getAnalysisById, refineAnalysis } = require('../controllers/analysis.controller');
 const { requireAuth } = require('../middlewares/auth.middleware');
+const { checkGuestQuota } = require('../middlewares/guest_quota.middleware');
 const { upload } = require('../middlewares/upload.middleware');
+const { validate } = require('../middlewares/validate.middleware');
+const { refineAnalysisSchema, listAnalysisQuery } = require('../validations/analysis.validation');
 
 const router = Router();
 
-router.post('/', requireAuth, upload.single('image'), analyzeImage);
+// The guest quota is checked before the upload middleware so a session without
+// recognitions left never gets its image stored.
+router.post('/', requireAuth, checkGuestQuota, upload.single('image'), analyzeImage);
+router.get('/', requireAuth, validate(listAnalysisQuery, 'query'), listMyAnalyses);
 router.get('/:id', requireAuth, getAnalysisById);
-router.post('/:id/refine', requireAuth, refineAnalysis);
+router.post('/:id/refine', requireAuth, validate(refineAnalysisSchema), refineAnalysis);
 
 module.exports = router;

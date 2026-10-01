@@ -5,13 +5,18 @@ class HeuristicRanker {
    * Evaluates and ranks known specimens from SQLite based on extracted visual features.
    * Fallback classifier when ML is offline or produces low confidence.
    */
-  static async rank(features = {}, preferredCategory = null) {
-    const where = { is_active: true };
-    if (preferredCategory) {
-      where.category = preferredCategory;
+  static async rank(features = {}, preferredCategory = null, catalog = null) {
+    let specimens = catalog;
+    if (!specimens) {
+      const where = { is_active: true };
+      if (preferredCategory) {
+        where.category = preferredCategory;
+      }
+      specimens = await Specimen.findAll({ where });
+    } else if (preferredCategory) {
+      specimens = specimens.filter((specimen) => specimen.category === preferredCategory);
     }
 
-    const specimens = await Specimen.findAll({ where });
     if (!specimens || specimens.length === 0) {
       return [];
     }

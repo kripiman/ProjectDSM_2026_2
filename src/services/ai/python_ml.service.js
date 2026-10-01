@@ -1,11 +1,24 @@
 const env = require('../../config/env');
+const { PROVIDERS } = require('../../config/constants');
 
 class PythonMLService {
+  /**
+   * The local Python microservice is optional: it is only queried when ML_SERVER_URL
+   * is configured.
+   */
+  static isEnabled() {
+    return Boolean(env.ML_SERVER_URL);
+  }
+
   /**
    * Pluggable client to the Python ML microservice.
    * Tolerant to missing ML servers (falls back cleanly).
    */
   static async predict(imagePath, features = {}) {
+    if (!PythonMLService.isEnabled()) {
+      return { available: false, reason: 'Python ML provider is not enabled', predictions: [] };
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), env.ML_TIMEOUT_MS);
 
@@ -23,7 +36,7 @@ class PythonMLService {
       if (!response.ok) {
         return {
           available: false,
-          error: `Python ML server returned HTTP ${response.status}`,
+          reason: `Python ML server returned HTTP ${response.status}`,
           predictions: []
         };
       }
@@ -31,7 +44,7 @@ class PythonMLService {
       const data = await response.json();
       return {
         available: true,
-        provider: 'ml_python',
+        provider: PROVIDERS.ML_PYTHON,
         predictions: data.predictions || []
       };
     } catch (error) {

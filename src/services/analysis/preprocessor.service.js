@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { AppError } = require('../../middlewares/error.middleware');
+const { AppError } = require('../../utils/app_error');
 const { ERROR_CODES } = require('../../config/constants');
 
 class PreprocessorService {

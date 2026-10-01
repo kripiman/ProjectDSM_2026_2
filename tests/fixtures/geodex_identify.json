@@ -1,0 +1,69 @@
+{
+  "success": true,
+  "request_id": "00000000-0000-4000-8000-000000000000",
+  "model": { "name": "gpt-5.6-luna", "provider": "openai" },
+  "input": {
+    "image": { "source": "base64", "mime_type": "image/jpeg", "format": "jpeg", "bytes": 204781 },
+    "observations": {},
+    "ignored_observations": {}
+  },
+  "result": {
+    "label": "pyrite",
+    "confidence": 97,
+    "score": 97,
+    "confidence_level": "high",
+    "specimen_id": "pyrite",
+    "dex_number": null,
+    "scientific_name": "Iron Disulfide",
+    "catalog_match": true
+  },
+  "predictions": [
+    {
+      "label": "pyrite",
+      "scientific_name": "Iron Disulfide",
+      "confidence": 97,
+      "reasoning": "Distinctive brass-yellow metallic luster and strongly cubic crystal forms are highly characteristic of pyrite.",
+      "observation_matches": [],
+      "observation_conflicts": [],
+      "catalog_match": true,
+      "specimen_id": "pyrite",
+      "dex_number": null,
+      "catalog": { "name_en": "Pyrite", "name_es": "Pirita", "scientific_name": "Iron Disulfide", "category": "mineral" },
+      "score": 97
+    },
+    {
+      "label": "magnetite",
+      "scientific_name": "Iron(II,III) Oxide",
+      "confidence": 1,
+      "reasoning": "Magnetite can form well-developed crystals, but it is typically black rather than brassy yellow and commonly has a more dark metallic appearance.",
+      "observation_matches": [],
+      "observation_conflicts": [],
+      "catalog_match": true,
+      "specimen_id": "magnetite",
+      "dex_number": null,
+      "catalog": { "name_en": "Magnetite", "name_es": "Magnetita", "scientific_name": "Iron(II,III) Oxide", "category": "mineral" },
+      "score": 1
+    },
+    {
+      "label": "feldspar",
+      "scientific_name": "Potassium Aluminium Silicate",
+      "confidence": 1,
+      "reasoning": "Feldspar may form blocky crystals, but its typically nonmetallic luster and lighter, less sharply cubic appearance do not fit the image well.",
+      "observation_matches": [],
+      "observation_conflicts": [],
+      "catalog_match": true,
+      "specimen_id": "feldspar",
+      "dex_number": null,
+      "catalog": { "name_en": "Potassium Feldspar", "name_es": "Feldespato (Ortoclasa)", "scientific_name": "Potassium Aluminium Silicate", "category": "mineral" },
+      "score": 1
+    }
+  ],
+  "notes": "The specimen shows a cluster of brassy, metallic, blocky cubic crystals characteristic of pyrite.",
+  "warnings": [
+    "This is an experimental visual identification API. Confirm important identifications with physical observation or laboratory analysis."
+  ],
+  "limitations": [
+    "Identification comes from a general-purpose vision model and a single photo; it can be wrong.",
+    "Results are grounded on the GeoDex catalog when candidates are available, not on laboratory analysis."
+  ]
+}

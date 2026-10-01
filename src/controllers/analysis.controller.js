@@ -1,10 +1,12 @@
-const path = require('path');
 const { uuidv4 } = require('../utils/uuid');
 const PipelineService = require('../services/analysis/pipeline.service');
-const { Analysis, AnalysisCandidate, AnalysisRefinement, Specimen, UserAchievement, Achievement } = require('../models');
+const AchievementService = require('../services/gamification/achievement.service');
+const RefinementService = require('../services/analysis/refinement.service');
+const { Analysis, AnalysisCandidate, AnalysisRefinement, Specimen, sequelize } = require('../models');
 const { successResponse } = require('../utils/response_formatter');
-const { AppError } = require('../middlewares/error.middleware');
-const { ERROR_CODES, ANALYSIS_STATUS } = require('../config/constants');
+const { AppError } = require('../utils/app_error');
+const { ERROR_CODES, USER_ROLES, ACHIEVEMENT_TRIGGERS, REFINEMENT_STATUS } = require('../config/constants');
+const { buildPagination, toPageWindow } = require('../utils/pagination');
 
 const analyzeImage = async (req, res, next) => {
   try {
@@ -12,36 +14,47 @@ const analyzeImage = async (req, res, next) => {
       throw new AppError(400, 'Image file is required under field "image"', ERROR_CODES.VALIDATION_ERROR);
     }
 
-    const userId = req.user.id;
-    const filePath = req.file.path;
-    const originalFilename = req.file.originalname || req.file.filename;
-    const storedFilename = req.file.filename;
-    const simulateFlag = req.query.simulate_non_specimen || req.body.simulate_non_specimen;
-
+    // A rejected request (for instance a 422 non-specimen image) has its file removed
+    // by the error handler.
     const result = await PipelineService.processImage({
-      userId,
-      filePath,
-      originalFilename,
-      storedFilename,
-      simulateFlag
+      userId: req.user.id,
+      filePath: req.file.path,
+      mimeType: req.file.mimetype,
+      originalFilename: req.file.originalname || req.file.filename,
+      storedFilename: req.file.filename,
+      simulateFlag: req.query.simulate_non_specimen || req.body.simulate_non_specimen
     });
 
-    // Check achievement: FIRST_SCAN
-    const firstScanAchievement = await Achievement.findOne({ where: { code: 'FIRST_SCAN' } });
-    if (firstScanAchievement) {
-      const [userAch] = await UserAchievement.findOrCreate({
-        where: { user_id: userId, achievement_id: firstScanAchievement.id },
-        defaults: { id: uuidv4(), current_progress: 1, is_unlocked: true, unlocked_at: new Date() }
-      });
-      if (!userAch.is_unlocked) {
-        userAch.is_unlocked = true;
-        userAch.current_progress = 1;
-        userAch.unlocked_at = new Date();
-        await userAch.save();
-      }
-    }
-
     return successResponse(res, result, 'Image analyzed successfully', 200);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Recognition history of the authenticated user (registered or guest session).
+ */
+const listMyAnalyses = async (req, res, next) => {
+  try {
+    const window = toPageWindow(req.validatedQuery);
+
+    const { count, rows } = await Analysis.findAndCountAll({
+      where: { user_id: req.user.id },
+      attributes: { exclude: ['raw_ai_response', 'extracted_features'] },
+      include: [{
+        model: Specimen,
+        as: 'primary_specimen',
+        attributes: ['id', 'name_es', 'name_en', 'category', 'thumbnail_url']
+      }],
+      order: [['createdAt', 'DESC']],
+      limit: window.limit,
+      offset: window.offset
+    });
+
+    return successResponse(res, {
+      analyses: rows,
+      pagination: buildPagination(window, count)
+    }, 'Recognition history retrieved successfully');
   } catch (error) {
     next(error);
   }
@@ -72,6 +85,11 @@ const getAnalysisById = async (req, res, next) => {
       throw new AppError(404, `Analysis with ID '${id}' not found`, ERROR_CODES.NOT_FOUND);
     }
 
+    // Recognitions are private to their owner; administrators may review them.
+    if (analysis.user_id !== req.user.id && req.user.role !== USER_ROLES.ADMIN) {
+      throw new AppError(403, 'You do not have access to this analysis', ERROR_CODES.FORBIDDEN);
+    }
+
     return successResponse(res, analysis, 'Analysis details retrieved successfully');
   } catch (error) {
     next(error);
@@ -81,69 +99,71 @@ const getAnalysisById = async (req, res, next) => {
 const refineAnalysis = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { answers } = req.body; // Array of { question_type: 'hardness'|'streak'|'magnetism', user_answer: '...' }
+    const { answers } = req.body; // Array of { question_type: 'hardness'|'streak'|'magnetism'|'luster', user_answer: '...' }
 
-    if (!answers || !Array.isArray(answers) || answers.length === 0) {
-      throw new AppError(400, 'Answers array is required', ERROR_CODES.VALIDATION_ERROR);
-    }
-
-    const analysis = await Analysis.findByPk(id, {
-      include: [{ model: AnalysisCandidate, as: 'candidates' }]
-    });
-
-    if (!analysis) {
-      throw new AppError(404, `Analysis with ID '${id}' not found`, ERROR_CODES.NOT_FOUND);
-    }
-
-    // Save refinement answers (HU-06)
-    for (const ans of answers) {
-      await AnalysisRefinement.create({
-        id: uuidv4(),
-        analysis_id: id,
-        question_type: ans.question_type,
-        user_answer: ans.user_answer,
-        confidence_delta: 0.10
+    const { updatedCandidates, unlockedAchievements } = await sequelize.transaction(async (transaction) => {
+      const analysis = await Analysis.findByPk(id, {
+        include: [{
+          model: AnalysisCandidate,
+          as: 'candidates',
+          include: [{ model: Specimen, as: 'specimen' }]
+        }],
+        transaction
       });
-    }
 
-    // Adjust candidate scores based on refinement
-    for (const cand of analysis.candidates) {
-      const specimen = await Specimen.findByPk(cand.specimen_id);
-      if (specimen) {
-        for (const ans of answers) {
-          if (ans.question_type === 'magnetism' && ans.user_answer.includes('magnético')) {
-            if (specimen.magnetism) {
-              cand.confidence_score = Math.min(0.98, cand.confidence_score + 0.20);
-              cand.rationale += ' (Confirmado por magnetismo positivo)';
-            } else {
-              cand.confidence_score = Math.max(0.10, cand.confidence_score - 0.30);
-            }
-          }
-          if (ans.question_type === 'hardness' && ans.user_answer.includes('vidrio')) {
-            if (specimen.mohs_hardness_min >= 6) {
-              cand.confidence_score = Math.min(0.98, cand.confidence_score + 0.15);
-              cand.rationale += ' (Confirmado dureza alta >= 6)';
-            }
-          }
-        }
-        await cand.save();
+      if (!analysis) {
+        throw new AppError(404, `Analysis with ID '${id}' not found`, ERROR_CODES.NOT_FOUND);
       }
-    }
 
-    analysis.refinement_status = 'refined';
-    await analysis.save();
+      // Only the person who made the recognition can refine it: doing so changes
+      // its scores and counts towards their achievements.
+      if (analysis.user_id !== req.user.id) {
+        throw new AppError(403, 'You do not have access to this analysis', ERROR_CODES.FORBIDDEN);
+      }
 
-    // Re-fetch updated candidates
-    const updatedCandidates = await AnalysisCandidate.findAll({
-      where: { analysis_id: id },
-      order: [['confidence_score', 'DESC']],
-      include: [{ model: Specimen, as: 'specimen' }]
+      // Save refinement answers (HU-06), each with the effect it had on the selected candidate.
+      const selected = analysis.candidates.find((candidate) => candidate.is_selected);
+      for (const ans of answers) {
+        const effect = selected && selected.specimen ? RefinementService.scoreAnswer(selected.specimen, ans) : null;
+        await AnalysisRefinement.create({
+          id: uuidv4(),
+          analysis_id: id,
+          question_type: ans.question_type,
+          user_answer: ans.user_answer,
+          confidence_delta: effect ? effect.delta : 0
+        }, { transaction });
+      }
+
+      // Adjust candidate scores based on refinement
+      for (const cand of analysis.candidates) {
+        if (!cand.specimen) {
+          continue;
+        }
+        RefinementService.applyAnswers(cand, cand.specimen, answers);
+        await cand.save({ transaction });
+      }
+
+      analysis.refinement_status = REFINEMENT_STATUS.REFINED;
+      await analysis.save({ transaction });
+
+      const unlocked = await AchievementService.evaluate(req.user.id, ACHIEVEMENT_TRIGGERS.REFINEMENT, { transaction });
+
+      // Re-fetch updated candidates
+      const candidates = await AnalysisCandidate.findAll({
+        where: { analysis_id: id },
+        order: [['confidence_score', 'DESC']],
+        include: [{ model: Specimen, as: 'specimen' }],
+        transaction
+      });
+
+      return { updatedCandidates: candidates, unlockedAchievements: unlocked };
     });
 
     return successResponse(res, {
       analysis_id: id,
-      refinement_status: 'refined',
-      updated_candidates: updatedCandidates
+      refinement_status: REFINEMENT_STATUS.REFINED,
+      updated_candidates: updatedCandidates,
+      unlocked_achievements: unlockedAchievements
     }, 'Analysis refined successfully');
   } catch (error) {
     next(error);
@@ -152,6 +172,7 @@ const refineAnalysis = async (req, res, next) => {
 
 module.exports = {
   analyzeImage,
+  listMyAnalyses,
   getAnalysisById,
   refineAnalysis
 };

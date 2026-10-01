@@ -212,25 +212,28 @@ describe('Registration rules', () => {
     await request(app).post('/auth/login').send({ email: tooLong, password: TEST_PASSWORD }).expect(400);
   });
 
-  test('duplicated emails and user names are rejected', async () => {
+  test('duplicated emails and user names are conflicts (409) that name the field', async () => {
     const first = await registerUser(app, { userName: `dup_${Date.now()}` });
 
     const sameEmail = await request(app)
       .post('/auth/register')
       .send({ email: first.email, password: TEST_PASSWORD })
-      .expect(400);
+      .expect(409);
+    expect(sameEmail.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'email' } });
     expect(sameEmail.body.message).toMatch(/already registered/);
 
     // Emails are case-insensitive.
     await request(app)
       .post('/auth/register')
       .send({ email: first.email.toUpperCase(), password: TEST_PASSWORD })
-      .expect(400);
+      .expect(409);
 
-    await request(app)
+    const sameName = await request(app)
       .post('/auth/register')
       .send({ email: uniqueEmail(), password: TEST_PASSWORD, userName: first.user.userName })
-      .expect(400);
+      .expect(409);
+    expect(sameName.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'userName' } });
+    expect(sameName.body.message).toMatch(/already taken/);
   });
 
   test('simultaneous registrations are all accepted (no database lock errors)', async () => {
@@ -250,7 +253,9 @@ describe('Registration rules', () => {
     );
 
     expect(responses.filter((res) => res.status === 201)).toHaveLength(1);
-    responses.filter((res) => res.status !== 201).forEach((res) => expect([400, 409]).toContain(res.status));
+    responses.filter((res) => res.status !== 201).forEach((res) => {
+      expect([res.status, res.body.details]).toEqual([409, { field: 'email' }]);
+    });
     expect(await User.count({ where: { email } })).toBe(1);
   });
 });
@@ -429,7 +434,7 @@ describe('Profile', () => {
       .set(auth(second.token))
       .send({ userName: first.user.userName })
       .expect(409);
-    expect(res.body.errorCode).toBe('409_CONFLICT');
+    expect(res.body).toMatchObject({ errorCode: '409_CONFLICT', message: 'Username is already taken', details: { field: 'userName' } });
   });
 });
 

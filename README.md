@@ -243,7 +243,7 @@ Las rutas protegidas requieren la cabecera `Authorization: Bearer <token>`. Nive
 | 403 | `403_FORBIDDEN` | Sin permiso o cuenta suspendida |
 | 403 | `GUEST_LIMIT_REACHED` | La sesión de invitado agotó sus 10 reconocimientos |
 | 404 | `404_NOT_FOUND` | Recurso inexistente |
-| 409 | `409_CONFLICT` | Duplicado o conflicto con otros registros |
+| 409 | `409_CONFLICT` | Duplicado o conflicto con otros registros. En un duplicado, `details.field` nombra el campo repetido (`email`, `userName`, `scientific_name`, `name`, `code`, `analysis_id`). |
 | 422 | `422_NON_SPECIMEN_IMAGE` | La imagen no corresponde a una roca o mineral |
 | 429 | `TOO_MANY_LOGIN_ATTEMPTS` | Se agotaron los intentos de login (ver [Inicio de sesión](#inicio-de-sesión)) |
 | 500 | `500_INTERNAL_SERVER_ERROR` | Error interno (sin detalles internos en la respuesta) |
@@ -459,6 +459,7 @@ Para quien consuma la API desde la aplicación móvil:
 * **Cuestionarios**: la experiencia se acredita una vez por cuestionario (primer aprobado; un primer intento fallido paga una fracción) y las preguntas sin responder pueden enviarse como `null`.
 * **Cuenta eliminada**: sus datos personales se borran y el correo puede registrarse de nuevo.
 * **Login**: los intentos fallidos se limitan por IP y correo; al agotarlos, `POST /auth/login` responde `429` (ver [Inicio de sesión](#inicio-de-sesión)). Los correos de más de 254 caracteres se rechazan.
+* **Duplicados**: un correo, nombre de usuario o nombre científico que ya existe responde `409` (`409_CONFLICT`) con `details.field`, igual que los demás duplicados; antes el registro y las rocas respondían `400`.
 * **Fotos privadas**: `/uploads/analyses/...` ya no existe; `image_url` pasa a ser `/analysis/:id/image` y requiere el token del dueño o de un administrador.
 
 ---

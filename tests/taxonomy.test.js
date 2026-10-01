@@ -87,7 +87,7 @@ describe.each([
 
       await request(app).post(path).set(auth(admin.token)).send({ name: expectedName }).expect(409);
       const upper = await request(app).post(path).set(auth(admin.token)).send({ name: expectedName.toUpperCase() }).expect(409);
-      expect(upper.body.errorCode).toBe('409_CONFLICT');
+      expect(upper.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'name' } });
     });
 
     test('names are validated', async () => {
@@ -109,7 +109,8 @@ describe.each([
       expect(renamed.body.data).toMatchObject({ name: `edited ${suffix}`, description: 'Nueva descripción' });
 
       await request(app).patch(`${path}/${id}`).set(auth(admin.token)).send({ description: 'Solo descripción' }).expect(200);
-      await request(app).patch(`${path}/${id}`).set(auth(admin.token)).send({ name: seeded }).expect(409);
+      const renamedToTaken = await request(app).patch(`${path}/${id}`).set(auth(admin.token)).send({ name: seeded }).expect(409);
+      expect(renamedToTaken.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'name' } });
       await request(app).patch(`${path}/${id}`).set(auth(admin.token)).send({}).expect(400);
       await request(app).patch(`${path}/999999`).set(auth(admin.token)).send({ name: 'whatever' }).expect(404);
 

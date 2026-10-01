@@ -116,7 +116,7 @@ const buildTaxonomyController = ({ Model, label, foreignKey }) => {
         const existing = await Model.findOne({ where: { name }, paranoid: false, transaction });
 
         if (existing && !existing.deleted_at) {
-          throw new AppError(409, `${label} '${name}' already exists`, ERROR_CODES.CONFLICT);
+          throw new AppError(409, `${label} '${name}' already exists`, ERROR_CODES.CONFLICT, { field: 'name' });
         }
 
         if (existing) {
@@ -160,7 +160,7 @@ const buildTaxonomyController = ({ Model, label, foreignKey }) => {
           });
           if (clash) {
             const reason = clash.deleted_at ? 'is reserved by a deleted record' : 'already exists';
-            throw new AppError(409, `${label} '${name}' ${reason}`, ERROR_CODES.CONFLICT);
+            throw new AppError(409, `${label} '${name}' ${reason}`, ERROR_CODES.CONFLICT, { field: 'name' });
           }
         }
 

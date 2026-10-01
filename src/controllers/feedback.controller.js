@@ -57,7 +57,8 @@ const createFeedback = async (req, res, next) => {
         throw new AppError(
           409,
           'This recognition already has an evaluation. Update it instead of sending a new one.',
-          ERROR_CODES.CONFLICT
+          ERROR_CODES.CONFLICT,
+          { field: 'analysis_id' }
         );
       }
 

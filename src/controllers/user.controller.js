@@ -1,5 +1,7 @@
 const { UserPreference, CollectionItem, Specimen } = require('../models');
 const GuestQuotaService = require('../services/guest_quota.service');
+const { ERROR_CODES } = require('../config/constants');
+const { AppError } = require('../utils/app_error');
 const { successResponse } = require('../utils/response_formatter');
 const { serializeUser } = require('../utils/serializers');
 
@@ -35,7 +37,11 @@ const updateProfile = async (req, res, next) => {
 
     return successResponse(res, serializeUser(user), 'User profile updated successfully');
   } catch (error) {
-    next(error);
+    // The user name is the only unique value a profile can change; the database settles who got it first.
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return next(new AppError(409, 'Username is already taken', ERROR_CODES.CONFLICT, { field: 'userName' }));
+    }
+    return next(error);
   }
 };
 

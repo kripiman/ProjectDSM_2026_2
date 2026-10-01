@@ -13,6 +13,13 @@ const isAdmin = (req) => Boolean(req.user) && req.user.role === USER_ROLES.ADMIN
 
 const buildRockId = (name) => `${slugify(name) || 'rock'}_${uuidv4().substring(0, 6)}`;
 
+const rockAlreadyExists = () => new AppError(
+  409,
+  'No puede añadir una roca que ya esté en el sistema.',
+  ERROR_CODES.CONFLICT,
+  { field: 'scientific_name' }
+);
+
 const assertHardnessRange = (min, max) => {
   if (min !== null && min !== undefined && max !== null && max !== undefined && min > max) {
     throw new AppError(400, 'La dureza mínima no puede ser mayor que la dureza máxima', ERROR_CODES.VALIDATION_ERROR);
@@ -46,7 +53,7 @@ const create = async (req, res, next) => {
         transaction
       });
       if (existingRock) {
-        throw new AppError(400, 'No puede añadir una roca que ya esté en el sistema.', ERROR_CODES.VALIDATION_ERROR);
+        throw rockAlreadyExists();
       }
 
       return Specimen.create({
@@ -151,7 +158,7 @@ const update = async (req, res, next) => {
           transaction
         });
         if (duplicate) {
-          throw new AppError(400, 'No puede añadir una roca que ya esté en el sistema.', ERROR_CODES.VALIDATION_ERROR);
+          throw rockAlreadyExists();
         }
       }
 

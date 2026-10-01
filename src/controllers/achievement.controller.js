@@ -92,7 +92,7 @@ const adminCreateAchievement = async (req, res, next) => {
 
     const existing = await Achievement.findOne({ where: { code: data.code } });
     if (existing) {
-      throw new AppError(409, `An achievement with code '${data.code}' already exists`, ERROR_CODES.CONFLICT);
+      throw new AppError(409, `An achievement with code '${data.code}' already exists`, ERROR_CODES.CONFLICT, { field: 'code' });
     }
 
     const conditionValue = await AchievementService.normalizeRule(data);

@@ -76,13 +76,13 @@ const register = async (req, res, next) => {
     const { user: newUser, guestMigrated } = await sequelize.transaction(async (transaction) => {
       const existingUser = await User.findOne({ where: { email }, transaction });
       if (existingUser) {
-        throw new AppError(400, 'Email is already registered', ERROR_CODES.VALIDATION_ERROR);
+        throw new AppError(409, 'Email is already registered', ERROR_CODES.CONFLICT, { field: 'email' });
       }
 
       if (resolvedUserName) {
         const existingUserName = await User.findOne({ where: { userName: resolvedUserName }, transaction });
         if (existingUserName) {
-          throw new AppError(400, 'Username is already taken', ERROR_CODES.VALIDATION_ERROR);
+          throw new AppError(409, 'Username is already taken', ERROR_CODES.CONFLICT, { field: 'userName' });
         }
       }
 

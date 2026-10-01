@@ -171,8 +171,28 @@ describe('Rock catalog administration (/rock and classroom aliases /api/rock)', 
     test('a rock that already exists cannot be added twice', async () => {
       const payload = newRock();
       await request(app).post('/rock').set(auth(admin.token)).send(payload).expect(201);
-      const duplicate = await request(app).post('/rock').set(auth(admin.token)).send({ ...payload, index: undefined }).expect(400);
+      const duplicate = await request(app).post('/rock').set(auth(admin.token)).send({ ...payload, index: undefined }).expect(409);
+      expect(duplicate.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'scientific_name' } });
       expect(duplicate.body.message).toMatch(/ya esté en el sistema/);
+    });
+
+    test('renaming a rock to the scientific name of another one is the same conflict', async () => {
+      const first = await request(app).post('/rock').set(auth(admin.token)).send(newRock()).expect(201);
+      const second = await request(app).post('/rock').set(auth(admin.token)).send(newRock()).expect(201);
+
+      const clash = await request(app)
+        .patch(`/rock/${second.body.rock.id}`)
+        .set(auth(admin.token))
+        .send({ scientific_name: first.body.rock.scientific_name })
+        .expect(409);
+      expect(clash.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'scientific_name' } });
+
+      // Keeping its own name is not a conflict.
+      await request(app)
+        .patch(`/rock/${second.body.rock.id}`)
+        .set(auth(admin.token))
+        .send({ scientific_name: second.body.rock.scientific_name })
+        .expect(200);
     });
 
     test('fields outside the catalog schema are ignored', async () => {

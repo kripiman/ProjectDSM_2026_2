@@ -73,7 +73,7 @@ describe('Recognition feedback', () => {
         .send({ rating: 'incorrect' })
         .expect(409);
 
-      expect(res.body.errorCode).toBe('409_CONFLICT');
+      expect(res.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'analysis_id' } });
       expect(await Feedback.count({ where: { analysis_id: analysisId } })).toBe(1);
     });
 

@@ -209,7 +209,7 @@ describe('Achievements administration', () => {
       const payload = { code, title: 'Único', description: 'Solo uno', condition_type: 'TOTAL_SCANS' };
       await createAchievement(payload).expect(201);
       const duplicate = await createAchievement({ ...payload, code: code.toLowerCase() }).expect(409);
-      expect(duplicate.body.errorCode).toBe('409_CONFLICT');
+      expect(duplicate.body).toMatchObject({ errorCode: '409_CONFLICT', details: { field: 'code' } });
       await createAchievement({ ...payload, code: 'FIRST_SCAN' }).expect(409);
     });
 

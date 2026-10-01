@@ -2,102 +2,106 @@ const bcrypt = require('bcryptjs');
 const { uuidv4 } = require('../utils/uuid');
 const env = require('../config/env');
 const { USER_ROLES, ERROR_CODES } = require('../config/constants');
-const { AppError } = require('../middlewares/error.middleware');
+const { AppError } = require('../utils/app_error');
 const { successResponse } = require('../utils/response_formatter');
-const { generateToken, verifyToken } = require('../services/token.service');
-const { User, UserPreference, CollectionItem, Analysis, UserAchievement, sequelize } = require('../models');
+const { serializeUser } = require('../utils/serializers');
+const { generateTokenForUser } = require('../services/token.service');
+const SessionService = require('../services/session.service');
+const UserService = require('../services/user.service');
+const { User, UserPreference, sequelize } = require('../models');
 
 const createAnonymousSession = async (req, res, next) => {
   try {
     const userId = uuidv4();
-    const guestUser = await User.create({
-      id: userId,
-      is_anonymous: true,
-      role: USER_ROLES.GUEST,
-      display_name: `Explorador_${userId.substring(0, 6)}`
-    });
+    const guestUser = await sequelize.transaction(async (transaction) => {
+      const created = await User.create({
+        id: userId,
+        is_anonymous: true,
+        role: USER_ROLES.GUEST,
+        display_name: `Explorador_${userId.substring(0, 6)}`
+      }, { transaction });
 
-    await UserPreference.create({
-      user_id: userId,
-      language: 'es',
-      theme: 'system'
-    });
+      await UserPreference.create({
+        user_id: userId,
+        language: 'es',
+        theme: 'system'
+      }, { transaction });
 
-    const token = generateToken(guestUser.id, guestUser.role, true);
+      return created;
+    });
 
     return successResponse(res, {
-      token,
-      user: {
-        id: guestUser.id,
-        is_anonymous: true,
-        display_name: guestUser.display_name,
-        role: guestUser.role,
-        current_level: guestUser.current_level,
-        experience_points: guestUser.experience_points
-      }
+      token: generateTokenForUser(guestUser),
+      user: serializeUser(guestUser)
     }, 'Anonymous guest session created successfully', 201);
   } catch (error) {
     next(error);
   }
 };
 
-const register = async (req, res, next) => {
-  const t = await sequelize.transaction();
+/**
+ * Returns the guest account referenced by `guestToken` when it can still be turned
+ * into a registered account, or null. A session that was already converted (or whose
+ * token was revoked or blocked) can never be claimed a second time.
+ */
+const findClaimableGuest = async (guestToken, transaction) => {
+  if (!guestToken) {
+    return null;
+  }
+
   try {
-    const { email, password, display_name, userName, username, phone, guest_token } = req.body;
-    const resolvedUserName = userName || username || null;
-
-    if (!email || !password) {
-      throw new AppError(400, 'Email and password are required', ERROR_CODES.VALIDATION_ERROR);
+    const user = await SessionService.resolveUser(guestToken, { transaction });
+    return user.is_anonymous ? user : null;
+  } catch (error) {
+    if (error instanceof AppError) {
+      return null; // Expired, revoked or unusable token: register without migrating anything.
     }
+    throw error;
+  }
+};
 
-    const existingUser = await User.findOne({ where: { email }, transaction: t });
-    if (existingUser) {
-      throw new AppError(400, 'Email is already registered', ERROR_CODES.VALIDATION_ERROR);
-    }
+const register = async (req, res, next) => {
+  try {
+    const { email, password, display_name, userName, phone, guest_token } = req.body;
+    const resolvedUserName = userName || null;
 
-    if (resolvedUserName) {
-      const existingUserName = await User.findOne({ where: { userName: resolvedUserName }, transaction: t });
-      if (existingUserName) {
-        throw new AppError(400, 'Username is already taken', ERROR_CODES.VALIDATION_ERROR);
+    // Hashing is CPU bound: do it before the transaction so the database write lock
+    // is held only for the time the queries themselves take.
+    const passwordHash = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
+
+    const { user: newUser, guestMigrated } = await sequelize.transaction(async (transaction) => {
+      const existingUser = await User.findOne({ where: { email }, transaction });
+      if (existingUser) {
+        throw new AppError(400, 'Email is already registered', ERROR_CODES.VALIDATION_ERROR);
       }
-    }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    let guestUserId = null;
-
-    // Check if guest token was provided for migration (HU-11)
-    if (guest_token) {
-      try {
-        const decoded = verifyToken(guest_token);
-        guestUserId = decoded.userId;
-      } catch (err) {
-        // Token expired or invalid, proceed without guest migration
+      if (resolvedUserName) {
+        const existingUserName = await User.findOne({ where: { userName: resolvedUserName }, transaction });
+        if (existingUserName) {
+          throw new AppError(400, 'Username is already taken', ERROR_CODES.VALIDATION_ERROR);
+        }
       }
-    }
 
-    let newUser;
+      const guest = await findClaimableGuest(guest_token, transaction);
 
-    if (guestUserId) {
-      const guestRecord = await User.findByPk(guestUserId, { transaction: t });
-      if (guestRecord && guestRecord.is_anonymous) {
-        // Upgrade guest user to registered account
-        guestRecord.email = email;
-        if (resolvedUserName) guestRecord.userName = resolvedUserName;
-        if (phone) guestRecord.phone = phone;
-        guestRecord.password_hash = passwordHash;
-        guestRecord.display_name = display_name || resolvedUserName || guestRecord.display_name;
-        guestRecord.is_anonymous = false;
-        guestRecord.role = USER_ROLES.USER;
-        await guestRecord.save({ transaction: t });
-        newUser = guestRecord;
+      if (guest) {
+        // Upgrade the guest row in place: its recognitions, discoveries and
+        // achievements already belong to this id.
+        guest.email = email;
+        if (resolvedUserName) guest.userName = resolvedUserName;
+        if (phone) guest.phone = phone;
+        guest.password_hash = passwordHash;
+        guest.display_name = display_name || resolvedUserName || guest.display_name;
+        guest.is_anonymous = false;
+        guest.role = USER_ROLES.USER;
+        // Invalidate every token issued for the temporary session.
+        guest.token_version += 1;
+        await guest.save({ transaction });
+        return { user: guest, guestMigrated: true };
       }
-    }
 
-    if (!newUser) {
-      const userId = uuidv4();
-      newUser = await User.create({
-        id: userId,
+      const created = await User.create({
+        id: uuidv4(),
         email,
         userName: resolvedUserName,
         phone: phone || null,
@@ -105,35 +109,23 @@ const register = async (req, res, next) => {
         display_name: display_name || resolvedUserName || email.split('@')[0],
         is_anonymous: false,
         role: USER_ROLES.USER
-      }, { transaction: t });
+      }, { transaction });
 
       await UserPreference.create({
-        user_id: newUser.id,
+        user_id: created.id,
         language: 'es',
         theme: 'system'
-      }, { transaction: t });
-    }
+      }, { transaction });
 
-    await t.commit();
-
-    const token = generateToken(newUser.id, newUser.role, false);
+      return { user: created, guestMigrated: false };
+    });
 
     return successResponse(res, {
-      token,
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        userName: newUser.userName,
-        phone: newUser.phone,
-        display_name: newUser.display_name,
-        is_anonymous: false,
-        role: newUser.role,
-        current_level: newUser.current_level,
-        experience_points: newUser.experience_points
-      }
+      token: generateTokenForUser(newUser),
+      guest_migrated: guestMigrated,
+      user: serializeUser(newUser)
     }, 'User registered successfully', 201);
   } catch (error) {
-    await t.rollback();
     next(error);
   }
 };
@@ -142,11 +134,7 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      throw new AppError(400, 'Email and password are required', ERROR_CODES.VALIDATION_ERROR);
-    }
-
-    const user = await User.findOne({ where: { email } });
+    const user = await User.scope('withPassword').findOne({ where: { email } });
     if (!user || !user.password_hash) {
       throw new AppError(401, 'Invalid email or password', ERROR_CODES.UNAUTHORIZED);
     }
@@ -156,21 +144,11 @@ const login = async (req, res, next) => {
       throw new AppError(401, 'Invalid email or password', ERROR_CODES.UNAUTHORIZED);
     }
 
-    const token = generateToken(user.id, user.role, user.is_anonymous);
+    UserService.assertActive(user);
 
     return successResponse(res, {
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        userName: user.userName,
-        phone: user.phone,
-        display_name: user.display_name,
-        is_anonymous: user.is_anonymous,
-        role: user.role,
-        current_level: user.current_level,
-        experience_points: user.experience_points
-      }
+      token: generateTokenForUser(user),
+      user: serializeUser(user)
     }, 'Login successful');
   } catch (error) {
     next(error);
@@ -179,9 +157,8 @@ const login = async (req, res, next) => {
 
 const deleteAccount = async (req, res, next) => {
   try {
-    const user = req.user;
-    // Soft-delete user (HU-17)
-    await user.destroy();
+    // HU-17: the account is closed and its personal data erased.
+    await UserService.deleteAccount(req.user.id);
 
     return successResponse(res, null, 'Account and personal data deleted successfully');
   } catch (error) {

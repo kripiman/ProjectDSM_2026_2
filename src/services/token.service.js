@@ -1,27 +1,41 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 
+const ALGORITHM = 'HS256';
+
 /**
  * Generates a signed JWT authentication token.
  * @param {string} userId
  * @param {string} role
  * @param {boolean} isAnonymous
- * @param {object} [options]
+ * @param {number} [tokenVersion] Session version stored on the user; bumping it revokes older tokens.
+ * @param {object} [options] Extra `jsonwebtoken` sign options.
  * @returns {string} Signed JWT
  */
-const generateToken = (userId, role, isAnonymous = false, options = {}) => {
+const generateToken = (userId, role, isAnonymous = false, tokenVersion = 1, options = {}) => {
   return jwt.sign(
     {
       userId,
       role,
-      isAnonymous
+      isAnonymous,
+      tokenVersion
     },
     env.JWT_SECRET,
     {
-      expiresIn: isAnonymous ? '30d' : (env.JWT_EXPIRES_IN || '7d'),
+      algorithm: ALGORITHM,
+      expiresIn: isAnonymous ? '30d' : env.JWT_EXPIRES_IN,
       ...options
     }
   );
+};
+
+/**
+ * Issues a token describing the current state of a user record.
+ * @param {import('sequelize').Model} user
+ * @returns {string}
+ */
+const generateTokenForUser = (user) => {
+  return generateToken(user.id, user.role, user.is_anonymous, user.token_version);
 };
 
 /**
@@ -30,7 +44,7 @@ const generateToken = (userId, role, isAnonymous = false, options = {}) => {
  * @returns {object} Decoded payload
  */
 const verifyToken = (token) => {
-  return jwt.verify(token, env.JWT_SECRET);
+  return jwt.verify(token, env.JWT_SECRET, { algorithms: [ALGORITHM] });
 };
 
 /**
@@ -51,6 +65,7 @@ const extractTokenFromHeader = (authHeader) => {
 
 module.exports = {
   generateToken,
+  generateTokenForUser,
   verifyToken,
   extractTokenFromHeader
 };

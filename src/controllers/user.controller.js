@@ -1,24 +1,39 @@
-const { User, UserPreference, CollectionItem } = require('../models');
+const { UserPreference, CollectionItem, Specimen } = require('../models');
+const GuestQuotaService = require('../services/guest_quota.service');
 const { successResponse } = require('../utils/response_formatter');
-const { AppError } = require('../middlewares/error.middleware');
+const { serializeUser } = require('../utils/serializers');
 
 const getProfile = async (req, res, next) => {
   try {
     const user = req.user;
-    const collectionCount = await CollectionItem.count({ where: { user_id: user.id } });
+    // Only rocks that are still part of the catalog count, like in the progress figures.
+    const collectionCount = await CollectionItem.count({
+      where: { user_id: user.id },
+      include: [{ model: Specimen, as: 'specimen', required: true, attributes: [], where: { is_active: true } }]
+    });
 
     return successResponse(res, {
-      id: user.id,
-      email: user.email,
-      display_name: user.display_name,
-      avatar_url: user.avatar_url,
-      is_anonymous: user.is_anonymous,
-      role: user.role,
-      current_level: user.current_level,
-      experience_points: user.experience_points,
+      ...serializeUser(user),
       collection_count: collectionCount,
-      created_at: user.created_at
+      guest_quota: user.is_anonymous ? await GuestQuotaService.usage(user.id) : null,
+      createdAt: user.createdAt
     }, 'User profile retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Updates the personal details of the authenticated user. Only whitelisted fields
+ * reach this handler (see `updateProfileSchema`): role, status and the like cannot
+ * be changed from here.
+ */
+const updateProfile = async (req, res, next) => {
+  try {
+    const user = req.user;
+    await user.update(req.body);
+
+    return successResponse(res, serializeUser(user), 'User profile updated successfully');
   } catch (error) {
     next(error);
   }
@@ -55,8 +70,8 @@ const updatePreferences = async (req, res, next) => {
 
     if (language !== undefined) preferences.language = language;
     if (theme !== undefined) preferences.theme = theme;
-    if (reduce_animations !== undefined) preferences.reduce_animations = Boolean(reduce_animations);
-    if (push_notifications !== undefined) preferences.push_notifications = Boolean(push_notifications);
+    if (reduce_animations !== undefined) preferences.reduce_animations = reduce_animations;
+    if (push_notifications !== undefined) preferences.push_notifications = push_notifications;
 
     await preferences.save();
 
@@ -68,6 +83,7 @@ const updatePreferences = async (req, res, next) => {
 
 module.exports = {
   getProfile,
+  updateProfile,
   getPreferences,
   updatePreferences
 };

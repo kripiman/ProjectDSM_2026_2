@@ -117,7 +117,6 @@ module.exports = {
   Role,
   UserPreference,
   Specimen,
-  Rock: Specimen, // Alias for classroom compatibility
   Category,
   Type,
   Analysis,

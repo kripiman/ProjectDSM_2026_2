@@ -35,10 +35,23 @@ CollectionItem.init({
     },
     onDelete: 'SET NULL'
   },
+  // Date of the first recognition; it is never rewritten afterwards.
   discovered_at: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  // Total times the user has recognised this specimen (1 = only the discovery).
+  occurrences_count: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1
+  },
+  additional_recognitions: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      return Math.max(0, (this.getDataValue('occurrences_count') || 1) - 1);
+    }
   },
   notes: {
     type: DataTypes.TEXT,

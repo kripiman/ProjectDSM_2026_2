@@ -34,7 +34,10 @@ AnalysisRefinement.init({
   modelName: 'AnalysisRefinement',
   tableName: 'analysis_refinement',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    { fields: ['analysis_id'] }
+  ]
 });
 
 module.exports = AnalysisRefinement;

@@ -52,7 +52,15 @@ Feedback.init({
   modelName: 'Feedback',
   tableName: 'feedback',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    // A recognition can carry at most one evaluation.
+    {
+      unique: true,
+      fields: ['analysis_id']
+    },
+    { fields: ['user_id'] }
+  ]
 });
 
 module.exports = Feedback;

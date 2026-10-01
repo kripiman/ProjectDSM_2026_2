@@ -1,6 +1,7 @@
-const { DataTypes, Model } = require('sequelize');
+const { DataTypes, Model, ValidationError, ValidationErrorItem } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { SPECIMEN_CATEGORIES, SPECIMEN_RARITIES } = require('../config/constants');
+const { SPECIMEN_RARITIES } = require('../config/constants');
+const { persistHookChanges } = require('../utils/model_hooks');
 
 class Specimen extends Model {}
 
@@ -42,12 +43,11 @@ Specimen.init({
     type: DataTypes.STRING,
     allowNull: true
   },
+  // Readable copy of `Category.name`, kept in sync by the `beforeValidate` hook
+  // below. `category_id` is the source of truth.
   category: {
     type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      isIn: [Object.values(SPECIMEN_CATEGORIES)]
-    }
+    allowNull: false
   },
   rarity: {
     type: DataTypes.STRING,
@@ -175,7 +175,31 @@ Specimen.init({
   paranoid: true,
   timestamps: true,
   underscored: true,
+  indexes: [
+    { fields: ['category_id'] },
+    { fields: ['type_id'] }
+  ],
   hooks: {
+    beforeValidate: async (specimen, options) => {
+      if (!specimen.category_id || !(specimen.isNewRecord || specimen.changed('category_id'))) {
+        return;
+      }
+      const category = await sequelize.models.Category.findByPk(specimen.category_id, {
+        transaction: options.transaction
+      });
+      if (!category) {
+        throw new ValidationError('Validation error', [
+          new ValidationErrorItem(
+            `Category with id ${specimen.category_id} does not exist`,
+            'Validation error',
+            'category_id',
+            specimen.category_id
+          )
+        ]);
+      }
+      specimen.category = category.name;
+      persistHookChanges(specimen, options, ['category']);
+    },
     beforeDestroy: (instance) => {
       instance.is_deleted = true;
     },

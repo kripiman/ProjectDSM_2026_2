@@ -52,7 +52,10 @@ AnalysisCandidate.init({
   modelName: 'AnalysisCandidate',
   tableName: 'analysis_candidate',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    { fields: ['analysis_id'] }
+  ]
 });
 
 module.exports = AnalysisCandidate;

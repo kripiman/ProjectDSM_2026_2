@@ -1,127 +1,181 @@
 const { z } = require('zod');
-const { SPECIMEN_CATEGORIES } = require('../config/constants');
+const { SPECIMEN_RARITIES } = require('../config/constants');
+const {
+  emptyToUndefined, queryInt, queryBoolean, queryText, paginationShape, optionalPaginationShape,
+  imageReference, atLeastOneField
+} = require('./common.validation');
 
+// Text that is not a number becomes NaN so the schema rejects it; silently dropping it
+// would accept (and ignore) an invalid value. An explicit null/empty value stays null:
+// it clears optional fields and is refused for required ones.
 const toNumber = (val) => {
-  if (val === undefined || val === null || val === '') return undefined;
-  const num = Number(val);
-  return Number.isNaN(num) ? undefined : num;
+  if (val === undefined) return undefined;
+  if (val === null || val === '') return null;
+  return Number(val);
 };
 
-const createRockSchema = z.preprocess((raw) => {
+// Multipart forms deliver booleans as text.
+const toBoolean = (val) => {
+  if (val === 'true' || val === '1' || val === 1) return true;
+  if (val === 'false' || val === '0' || val === 0) return false;
+  return val;
+};
+
+const optionalNumber = z.preprocess(toNumber, z.number().optional().nullable());
+const optionalPositiveNumber = z.preprocess(toNumber, z.number().positive().optional().nullable());
+const optionalText = (maxLength = 500) => z.string().trim().max(maxLength).optional().nullable();
+
+// Alternative spellings accepted by the API (camelCase and classroom names) and the
+// model column each one stands for.
+const FIELD_ALIASES = {
+  scientificName: 'scientific_name',
+  index: 'catalog_index',
+  typeId: 'type_id',
+  categoryId: 'category_id',
+  formula: 'chemical_formula',
+  molarWeight: 'molar_weight',
+  commonUses: 'common_uses',
+  streak: 'streak_color',
+  color: 'color_description',
+  mindatUrl: 'mindat_url'
+};
+
+/**
+ * Maps the different spellings accepted by the API onto the column names used by the
+ * model, and fills in what can be derived (English name, scientific name, a hardness
+ * range from a single value, the image from any of its names).
+ */
+const normalizeRockPayload = (raw, { creating }) => {
   if (typeof raw !== 'object' || raw === null) return raw;
   const data = { ...raw };
 
-  // Harmonize naming fields
+  for (const [alias, column] of Object.entries(FIELD_ALIASES)) {
+    if (data[alias] !== undefined && data[column] === undefined) data[column] = data[alias];
+  }
+
   const resolvedName = data.name || data.name_es || data.name_en;
-  if (resolvedName) {
-    if (!data.name_es) data.name_es = resolvedName;
-    if (!data.name_en) data.name_en = resolvedName;
+  if (creating) {
+    if (resolvedName) {
+      if (!data.name_es) data.name_es = resolvedName;
+      if (!data.name_en) data.name_en = resolvedName;
+    }
+    data.scientific_name = data.scientific_name || resolvedName;
+  } else if (data.name && !data.name_es) {
+    data.name_es = data.name;
   }
-  data.scientific_name = data.scientificName || data.scientific_name || resolvedName;
-
-  // Harmonize index and relations
-  if (data.index !== undefined && data.catalog_index === undefined) data.catalog_index = data.index;
-  if (data.typeId !== undefined && data.type_id === undefined) data.type_id = data.typeId;
-  if (data.categoryId !== undefined && data.category_id === undefined) data.category_id = data.categoryId;
-
-  // Harmonize chemical and physical properties
-  if (data.formula !== undefined && data.chemical_formula === undefined) data.chemical_formula = data.formula;
-  if (data.molarWeight !== undefined && data.molar_weight === undefined) data.molar_weight = data.molarWeight;
-  if (data.commonUses !== undefined && data.common_uses === undefined) data.common_uses = data.commonUses;
-  if (data.streak !== undefined && data.streak_color === undefined) data.streak_color = data.streak;
-  if (data.color !== undefined && data.color_description === undefined) data.color_description = data.color;
 
   if (data.hardness !== undefined) {
     if (data.mohs_hardness_min === undefined) data.mohs_hardness_min = data.hardness;
     if (data.mohs_hardness_max === undefined) data.mohs_hardness_max = data.hardness;
   }
 
-  // Harmonize URLs
-  if (data.imgUrl !== undefined || data.img_url !== undefined) {
-    data.full_image_url = data.imgUrl || data.img_url || data.full_image_url;
+  const image = data.imgUrl ?? data.img_url ?? data.imageUrl ?? data.image_url ?? data.image;
+  if (typeof image === 'string' && image.trim() !== '' && data.full_image_url === undefined) {
+    data.full_image_url = image;
   }
-  if (data.mindatUrl !== undefined && data.mindat_url === undefined) data.mindat_url = data.mindatUrl;
+
+  if (data.magnetism !== undefined) data.magnetism = toBoolean(data.magnetism);
+  if (data.is_active !== undefined) data.is_active = toBoolean(data.is_active);
 
   return data;
-}, z.object({
-  id: z.string().optional(),
-  name_es: z.string({ required_error: 'El nombre de la roca es obligatorio' }).min(1, 'El nombre de la roca es obligatorio'),
-  name_en: z.string().optional(),
-  scientific_name: z.string().optional(),
+};
+
+const MOHS_RANGE_MESSAGE = 'La dureza de Mohs debe estar entre 1 y 10';
+const mohsHardness = z.preprocess(toNumber, z.number().min(1, MOHS_RANGE_MESSAGE).max(10, MOHS_RANGE_MESSAGE));
+
+const rockFields = {
+  name_es: z.string({ error: 'El nombre de la roca es obligatorio' }).trim().min(1, 'El nombre de la roca es obligatorio').max(150),
+  name_en: z.string().trim().min(1).max(150).optional(),
+  scientific_name: z.string().trim().min(1).max(200).optional(),
   catalog_index: z.preprocess(toNumber, z.number().int().optional().nullable()),
-  type_id: z.preprocess(toNumber, z.number().int().optional().nullable()),
-  category_id: z.preprocess(toNumber, z.number().int().optional().nullable()),
-  category: z.string().optional().default(SPECIMEN_CATEGORIES.MINERAL),
-  description: z.string().optional().default('Sin descripción disponible'),
-  composition: z.string().optional().nullable(),
-  chemical_formula: z.string().optional().nullable(),
-  molar_weight: z.preprocess(toNumber, z.number().optional().nullable()),
-  environment: z.string().optional().nullable(),
-  common_uses: z.string().optional().nullable(),
-  mohs_hardness_min: z.preprocess(toNumber, z.number().optional().default(1.0)),
-  mohs_hardness_max: z.preprocess(toNumber, z.number().optional().default(1.0)),
-  streak_color: z.string().optional().nullable(),
-  color_description: z.string().optional().nullable(),
-  texture: z.string().optional().nullable(),
-  density: z.preprocess(toNumber, z.number().optional().nullable()),
-  transparency: z.preprocess(toNumber, z.number().optional().nullable()),
-  tenacity: z.preprocess(toNumber, z.number().optional().nullable()),
-  full_image_url: z.string().optional().nullable(),
-  mindat_url: z.string().optional().nullable()
-}));
+  rarity: z.enum(Object.values(SPECIMEN_RARITIES)).optional(),
+  description: z.string({ error: 'La descripción de la roca es obligatoria' }).trim().min(1, 'La descripción de la roca es obligatoria').max(5000),
+  composition: optionalText(),
+  chemical_formula: optionalText(),
+  molar_weight: optionalPositiveNumber,
+  environment: optionalText(),
+  common_uses: optionalText(),
+  mohs_hardness_min: mohsHardness,
+  mohs_hardness_max: mohsHardness,
+  streak_color: optionalText(),
+  luster: optionalText(),
+  color_description: optionalText(),
+  texture: optionalText(),
+  cleavage: optionalText(),
+  fracture: optionalText(),
+  crystal_system: optionalText(),
+  identification_tips: optionalText(5000),
+  magnetism: z.boolean().optional(),
+  density: optionalPositiveNumber,
+  specific_gravity: optionalPositiveNumber,
+  transparency: optionalNumber,
+  tenacity: optionalNumber,
+  full_image_url: imageReference('La imagen debe ser una URL http(s) o una ruta que comience con "/"')
+    .min(1, 'La imagen de la roca es obligatoria'),
+  thumbnail_url: imageReference('La miniatura debe ser una URL http(s) o una ruta que comience con "/"').optional().nullable(),
+  mindat_url: optionalText()
+};
 
-const updateRockSchema = z.preprocess((raw) => {
-  if (typeof raw !== 'object' || raw === null) return raw;
-  const data = { ...raw };
+const requiredTaxonomyId = (label) => z.preprocess(
+  toNumber,
+  z.number({ error: `${label} es obligatorio` }).int().positive(`${label} es obligatorio`)
+);
+const optionalTaxonomyId = z.preprocess(toNumber, z.number().int().positive().optional());
 
-  if (data.molarWeight !== undefined && data.molar_weight === undefined) data.molar_weight = data.molarWeight;
-  if (data.commonUses !== undefined && data.common_uses === undefined) data.common_uses = data.commonUses;
-  if (data.scientificName !== undefined && data.scientific_name === undefined) data.scientific_name = data.scientificName;
-  if (data.typeId !== undefined && data.type_id === undefined) data.type_id = data.typeId;
-  if (data.categoryId !== undefined && data.category_id === undefined) data.category_id = data.categoryId;
-  if (data.index !== undefined && data.catalog_index === undefined) data.catalog_index = data.index;
-  if (data.formula !== undefined && data.chemical_formula === undefined) data.chemical_formula = data.formula;
-  if (data.streak !== undefined && data.streak_color === undefined) data.streak_color = data.streak;
-  if (data.color !== undefined && data.color_description === undefined) data.color_description = data.color;
+const hardnessRange = (data) => data.mohs_hardness_min === undefined
+  || data.mohs_hardness_max === undefined
+  || data.mohs_hardness_min <= data.mohs_hardness_max;
+const HARDNESS_RANGE_ISSUE = {
+  message: 'La dureza mínima no puede ser mayor que la dureza máxima',
+  path: ['mohs_hardness_min']
+};
 
-  if (data.hardness !== undefined) {
-    if (data.mohs_hardness_min === undefined) data.mohs_hardness_min = data.hardness;
-    if (data.mohs_hardness_max === undefined) data.mohs_hardness_max = data.hardness;
-  }
+const createRockSchema = z.preprocess((raw) => normalizeRockPayload(raw, { creating: true }), z.object({
+  id: z.string().trim().regex(/^[A-Za-z0-9_-]{1,100}$/, 'El identificador solo admite letras, números, "_" y "-"').optional(),
+  ...rockFields,
+  mohs_hardness_min: rockFields.mohs_hardness_min.optional().default(1),
+  mohs_hardness_max: rockFields.mohs_hardness_max.optional().default(1),
+  type_id: requiredTaxonomyId('El tipo (typeId)'),
+  category_id: requiredTaxonomyId('La categoría (categoryId)')
+}).refine(hardnessRange, HARDNESS_RANGE_ISSUE));
 
-  if (data.imgUrl !== undefined || data.img_url !== undefined) {
-    data.full_image_url = data.imgUrl || data.img_url || data.full_image_url;
-  }
-  if (data.mindatUrl !== undefined && data.mindat_url === undefined) data.mindat_url = data.mindatUrl;
+const updateRockSchema = z.preprocess(
+  (raw) => normalizeRockPayload(raw, { creating: false }),
+  atLeastOneField(
+    z.object({
+      ...Object.fromEntries(Object.entries(rockFields).map(([key, schema]) => [key, schema.optional()])),
+      type_id: optionalTaxonomyId,
+      category_id: optionalTaxonomyId,
+      is_active: z.boolean().optional()
+    }).refine(hardnessRange, HARDNESS_RANGE_ISSUE),
+    'Debe indicar al menos un campo para actualizar'
+  )
+);
 
-  return data;
-}, z.object({
-  name_es: z.string().min(1).optional(),
-  name_en: z.string().min(1).optional(),
-  scientific_name: z.string().min(1).optional(),
-  catalog_index: z.preprocess(toNumber, z.number().int().optional().nullable()),
-  type_id: z.preprocess(toNumber, z.number().int().optional().nullable()),
-  category_id: z.preprocess(toNumber, z.number().int().optional().nullable()),
-  category: z.string().optional(),
-  description: z.string().optional(),
-  composition: z.string().optional().nullable(),
-  chemical_formula: z.string().optional().nullable(),
-  molar_weight: z.preprocess(toNumber, z.number().optional().nullable()),
-  environment: z.string().optional().nullable(),
-  common_uses: z.string().optional().nullable(),
-  mohs_hardness_min: z.preprocess(toNumber, z.number().optional()),
-  mohs_hardness_max: z.preprocess(toNumber, z.number().optional()),
-  streak_color: z.string().optional().nullable(),
-  color_description: z.string().optional().nullable(),
-  texture: z.string().optional().nullable(),
-  density: z.preprocess(toNumber, z.number().optional().nullable()),
-  transparency: z.preprocess(toNumber, z.number().optional().nullable()),
-  tenacity: z.preprocess(toNumber, z.number().optional().nullable()),
-  full_image_url: z.string().optional().nullable(),
-  mindat_url: z.string().optional().nullable()
-}));
+const rockFilters = {
+  category_id: queryInt({ min: 1 }),
+  type_id: queryInt({ min: 1 }),
+  category: queryText(60),
+  type: queryText(60),
+  rarity: z.preprocess(emptyToUndefined, z.enum(Object.values(SPECIMEN_RARITIES)).optional()),
+  magnetism: queryBoolean,
+  q: queryText(100)
+};
+
+const listRocksQuery = z.object({
+  ...rockFilters,
+  include_inactive: queryBoolean,
+  ...optionalPaginationShape()
+});
+
+const listSpecimensQuery = z.object({
+  ...rockFilters,
+  ...paginationShape({ defaultLimit: 20 })
+});
 
 module.exports = {
   createRockSchema,
-  updateRockSchema
+  updateRockSchema,
+  listRocksQuery,
+  listSpecimensQuery
 };

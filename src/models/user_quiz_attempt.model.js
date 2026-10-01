@@ -54,7 +54,10 @@ UserQuizAttempt.init({
   modelName: 'UserQuizAttempt',
   tableName: 'user_quiz_attempt',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    { fields: ['user_id'] }
+  ]
 });
 
 module.exports = UserQuizAttempt;

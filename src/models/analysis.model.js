@@ -1,6 +1,6 @@
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { ANALYSIS_STATUS, PROVIDERS } = require('../config/constants');
+const { ANALYSIS_STATUS, REFINEMENT_STATUS, PROVIDERS } = require('../config/constants');
 
 class Analysis extends Model {}
 
@@ -65,7 +65,7 @@ Analysis.init({
   refinement_status: {
     type: DataTypes.STRING,
     allowNull: false,
-    defaultValue: 'none' // 'none', 'pending', 'refined'
+    defaultValue: REFINEMENT_STATUS.NONE
   },
   raw_ai_response: {
     type: DataTypes.JSON,
@@ -80,7 +80,11 @@ Analysis.init({
   modelName: 'Analysis',
   tableName: 'analysis',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    { fields: ['user_id'] },
+    { fields: ['primary_specimen_id'] }
+  ]
 });
 
 module.exports = Analysis;

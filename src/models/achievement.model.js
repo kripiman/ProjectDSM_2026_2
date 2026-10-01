@@ -1,5 +1,6 @@
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
+const { ACHIEVEMENT_CONDITIONS } = require('../config/constants');
 
 class Achievement extends Model {}
 
@@ -26,6 +27,22 @@ Achievement.init({
     allowNull: false // 'discovery', 'streak', 'refinement', 'quiz'
   },
   icon_url: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  // How the achievement is earned: `condition_type` selects the metric that is
+  // measured for the user, `required_count` is the threshold to reach and the
+  // optional `condition_value` narrows the metric (category id for
+  // CATEGORY_SPECIMENS, minimum quiz score for QUIZ_SCORE).
+  condition_type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: ACHIEVEMENT_CONDITIONS.TOTAL_SCANS,
+    validate: {
+      isIn: [Object.values(ACHIEVEMENT_CONDITIONS)]
+    }
+  },
+  condition_value: {
     type: DataTypes.STRING,
     allowNull: true
   },

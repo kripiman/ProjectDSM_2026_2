@@ -1,67 +1,57 @@
 # ProjectDSM - Rock & Mineral Analysis Backend
 
-Backend REST API y plataforma de persistencia para el sistema de análisis automatizado e identificación de muestras geológicas (minerales y rocas).
-
----
-
-## Nombre del Proyecto
-
-**ProjectDSM** (`projectdsm_2026_2`) — Sistema de Identificación y Catalogación Geológica.
+Backend REST API para una aplicación móvil de reconocimiento de rocas y minerales: administra usuarios, roles, catálogo de rocas (con tipos y categorías), reconocimiento de imágenes, colección personal, logros, estadísticas y retroalimentación sobre los resultados del modelo.
 
 ---
 
 ## Descripción
 
-**ProjectDSM** es una solución backend orientada al reconocimiento, clasificación y gestión educativa de muestras minerales y rocas (ígneas, sedimentarias y metamórficas). El sistema combina técnicas de procesamiento de imágenes, integración con microservicios de aprendizaje automático, heurísticas taxonómicas y un modelo de desambiguación asistido para proveer un flujo de identificación geológica resiliente y preciso.
+**ProjectDSM** (`projectdsm_2026_2`) permite que una aplicación móvil:
 
-### Pipeline Híbrido de Clasificación
+* **Identifique rocas y minerales** enviando una fotografía. El backend valida la imagen, consulta el modelo de reconocimiento (API GeoDex) y, si no está disponible, recurre a un clasificador heurístico local.
+* **Funcione sin cuenta** mediante sesiones de invitado (hasta 10 reconocimientos por sesión) y conserve el progreso al crear una cuenta.
+* **Mantenga una colección personal** que se completa automáticamente con cada reconocimiento.
+* **Otorgue logros** definidos por datos, que los administradores crean y configuran.
+* **Recoja retroalimentación** de los usuarios registrados sobre los resultados de la IA.
+* **Ofrezca un panel administrativo** para gestionar usuarios, catálogo, logros y supervisar la actividad.
 
-1. **Filtro de Validación Previa (Non-Specimen Filter)**: Evalúa la imagen ingresada y rechaza aquellas que no corresponden a un espécimen geológico retornando un código de error HTTP `422 Unprocessable Entity` con el identificador `NON_SPECIMEN_IMAGE`.
-2. **Extracción de Características Visuales**: Analiza determinísticamente propiedades fundamentales como color dominante, textura y brillo aparente.
-3. **Microservicio de Machine Learning en Python**: Cliente HTTP desacoplado que consulta modelos de visión computacional externos con tolerancia a fallos y tiempo de espera configurable (`ML_TIMEOUT_MS`).
-4. **Motor de Clasificación Heurístico (Fallback)**: Mecanismo de respaldo determinista basado en catálogo físico que opera de manera autónoma en caso de indisponibilidad del servicio de ML.
-5. **Adjudicador Asistido**: Módulo de desambiguación para candidatos con márgenes de confianza cercanos, capaz de generar y evaluar preguntas de refinamiento físico basadas en propiedades empíricas (dureza en la escala de Mohs, color de raya, magnetismo y exfoliación).
+### Tipos de usuario
 
-### Funcionalidades Adicionales
+| Rol | Cómo se obtiene | Qué puede hacer |
+|---|---|---|
+| **Invitado** (`guest`) | `POST /auth/anonymous`, sin registrarse | Reconocer hasta 10 rocas por sesión, obtener logros y ver su progreso. |
+| **Usuario** (`user`) | Registro / inicio de sesión | Reconocimientos sin límite, colección, logros, progreso, cuestionarios y feedback. |
+| **Administrador** (`admin`) | Solo por el *seeder* (`ADMIN_EMAIL` / `ADMIN_PASSWORD`) o por otro administrador | Todo lo anterior más la gestión de usuarios, rocas, tipos, categorías, logros y estadísticas globales. |
 
-* **Gestión de Sesiones Flexibles**: Soporte integral de sesiones anónimas (invitados) mediante tokens JWT y migración automática y transparente de colecciones e historial al consolidar el registro de usuario.
-* **Colección Personal y Métricas**: Registro de descubrimientos con desglose cuantitativo y porcentual por grupos taxonómicos.
-* **Módulo Educativo y Gamificación**: Sistema de cuestionarios evaluados, asignación de puntos de experiencia (XP), niveles y catálogo de logros desbloqueables.
-* **Telemetría y Retroalimentación**: Registro de eventos de interacción y envío de feedback sobre la precisión de los análisis para calibración del sistema.
+Nadie puede asignarse privilegios de administrador al registrarse ni al actualizar su perfil: los campos de rol y estado no se leen de los datos enviados por el cliente.
 
 ---
 
 ## Tecnología Utilizada
 
-El proyecto está construido sobre el ecosistema Node.js adoptando una arquitectura por capas modular y desacoplada:
+* **Entorno de ejecución**: [Node.js](https://nodejs.org/) (v20.17 o superior)
+* **Framework web**: [Express.js](https://expressjs.com/) (v5)
+* **Base de datos**: [SQLite3](https://www.sqlite.org/) mediante [Sequelize](https://sequelize.org/) (v6), con convención de tablas en inglés, singular y minúsculas (`user`, `specimen`, `analysis`, `collection_item`, ...)
+* **Autenticación y seguridad**: [JSON Web Token](https://jwt.io/) (`jsonwebtoken`), [bcryptjs](https://github.com/dcodeIO/bcrypt.js) para el hash de contraseñas y [CORS](https://github.com/expressjs/cors)
+* **Variables de entorno**: [dotenv](https://github.com/motdotla/dotenv)
+* **Registro de solicitudes HTTP**: [Morgan](https://github.com/expressjs/morgan)
+* **Carga de archivos**: [Multer](https://github.com/expressjs/multer)
+* **Validación de datos**: [Zod](https://zod.dev/)
+* **Migraciones**: [sequelize-cli](https://github.com/sequelize/cli)
+* **Pruebas**: [Jest](https://jestjs.io/) y [Supertest](https://github.com/ladjs/supertest)
 
-* **Entorno de Ejecución**: [Node.js](https://nodejs.org/) (v18 o superior)
-* **Framework Web**: [Express.js](https://expressjs.com/) (v5.2.1)
-* **Base de Datos**: [SQLite3](https://www.sqlite.org/) (v6.0.1)
-* **ORM**: [Sequelize](https://sequelize.org/) (v6.37.8) aplicando convenciones en inglés, singular y en minúsculas (`user`, `specimen`, `analysis`, etc.)
-* **Autenticación y Seguridad**: 
-  * [JSON Web Token (JWT)](https://jwt.io/) (`jsonwebtoken` v9.0.3)
-  * [BcryptJS](https://github.com/dcodeIO/bcrypt.js) (v3.0.3) para derivación y hashing seguro de credenciales
-  * [CORS](https://github.com/expressjs/cors) (v2.8.6) para políticas de origen cruzado
-* **Carga de Archivos**: [Multer](https://github.com/expressjs/multer) (v2.3.0) para procesamiento de transferencias `multipart/form-data`
-* **Validación de Datos**: [Zod](https://zod.dev/) (v4.5.4)
-* **Generación de Identificadores**: [UUID](https://github.com/uuidjs/uuid) (v14.0.2 - UUIDv4)
-* **Logging HTTP**: [Morgan](https://github.com/expressjs/morgan) (v1.12.0)
-* **Testing Automatizado**: [Jest](https://jestjs.io/) (v30.5.1) y [Supertest](https://github.com/ladjs/supertest) (v7.2.2)
-* **Herramientas de Desarrollo**: [Nodemon](https://nodemon.io/) (v3.1.14), [Dotenv](https://github.com/motdotla/dotenv) (v17.4.2), `sequelize-cli` (v6.6.5)
+La aplicación sigue una arquitectura modular por capas (configuración, modelos, rutas, controladores, middlewares, servicios y utilidades).
 
 ---
 
 ## Requisitos Previos
 
-Antes de configurar y ejecutar el proyecto, asegúrese de contar con los siguientes elementos instalados en su entorno:
+* **Node.js** 20.17 o superior (requisito del controlador `sqlite3`; se recomienda Node 20 LTS).
+* **npm** 9 o superior.
+* **Git**.
+* *(Opcional)* Una **API key de GeoDex** para usar el modelo de reconocimiento real (ver [Reconocimiento con GeoDex](#reconocimiento-con-geodex)).
 
-* **Node.js**: Versión `18.0.0` o superior (se recomienda Node 20 LTS o superior).
-* **npm**: Versión `9.0.0` o superior.
-* **SQLite3**: Motor de base de datos relacional ligero instalado en el sistema operativo.
-* **Git**: Herramienta de control de versiones.
-* *(Opcional)* **Microservicio ML**: Servicio externo en ejecución para inferencia avanzada de imágenes.
-* *(Opcional)* **OpenAI API Key**: Clave de API para el adjudicador de desambiguación asistida.
+No es necesario instalar SQLite por separado: el controlador `sqlite3` incluye el motor.
 
 ---
 
@@ -73,277 +63,371 @@ Antes de configurar y ejecutar el proyecto, asegúrese de contar con los siguien
    cd ProjectDSM_2026_2
    ```
 
-2. **Instalar las dependencias del proyecto**:
+2. **Instalar las dependencias**:
    ```bash
    npm install
    ```
 
-3. **Configurar las variables de entorno**:
-   Crear un archivo `.env` en la raíz del proyecto a partir de la siguiente plantilla:
+3. **Configurar las variables de entorno** a partir de la plantilla [`.env.example`](.env.example) (no contiene credenciales reales):
    ```bash
-   touch .env
+   cp .env.example .env
+   ```
+   Edite `.env` y defina al menos `JWT_SECRET`, `ADMIN_EMAIL` y `ADMIN_PASSWORD`.
+
+4. **Inicializar la base de datos** (crea las tablas y carga los datos iniciales, incluido el administrador):
+   ```bash
+   npm run db:init
    ```
 
-4. **Crear directorio para almacenamiento de cargas**:
+5. **Iniciar el servidor**:
    ```bash
-   mkdir -p uploads/analyses
+   npm start
    ```
+   El servidor queda disponible en `http://localhost:8080` (puerto configurable con `PORT`). Puede comprobarlo con `GET /health`.
 
-5. **Inicializar y poblar la base de datos**:
-   Ejecutar el script de inicialización para crear el esquema relacional en SQLite y cargar el catálogo inicial de especímenes, logros y cuestionarios:
-   ```bash
-   node src/database/init.js
-   ```
+> `npm start` también crea las tablas que falten y carga los datos iniciales al arrancar, por lo que el paso 4 es opcional en una instalación nueva.
 
 ---
 
 ## Variables de Entorno
 
-El sistema se parametriza mediante un archivo `.env` ubicado en la raíz del proyecto. Las variables soportadas por la configuración centralizada ([`src/config/env.js`](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/src/config/env.js)) son:
+Todas se leen en [`src/config/env.js`](src/config/env.js). La plantilla completa está en [`.env.example`](.env.example).
 
-| Variable | Tipo | Descripción | Valor por Defecto / Ejemplo | Requerida |
-|---|---|---|---|:---:|
-| `PORT` | Número | Puerto de red en el que escucha el servidor HTTP | `8080` | No |
-| `NODE_ENV` | String | Entorno de ejecución (`development`, `production`, `test`) | `development` | No |
-| `DATABASE_NAME` | String | Identificador lógico de la base de datos | `rock` | No |
-| `DATABASE_STORAGE` | String | Ruta del archivo de persistencia SQLite | `./rock.sqlite` | No |
-| `JWT_SECRET` | String | Clave criptográfica para la firma y verificación de tokens JWT | `c3a657...` | Sí (en prod) |
-| `JWT_EXPIRES_IN` | String | Vigencia temporal de los tokens emitidos | `30d` | No |
-| `ML_SERVER_URL` | String | Dirección base del microservicio de Machine Learning en Python | `http://localhost:5000` | No |
-| `ML_TIMEOUT_MS` | Número | Tiempo máximo de espera en milisegundos para respuesta de ML | `4000` | No |
-| `OPENAI_API_KEY` | String | Llave de acceso a la API de OpenAI para adjudicación | *(vacío)* | No |
-| `OPENAI_MODEL` | String | Identificador del modelo de lenguaje para adjudicación | `gpt-4o-mini` | No |
-| `UPLOAD_DIR` | String | Directorio local de almacenamiento de imágenes subidas | `uploads/analyses` | No |
+| Variable | Descripción | Valor por defecto |
+|---|---|---|
+| `PORT` | Puerto HTTP | `8080` |
+| `NODE_ENV` | `development`, `production` o `test` | `development` |
+| `DATABASE_STORAGE` | Archivo SQLite | `./rock.sqlite` |
+| `LOG_SQL` | Imprime las sentencias SQL (por defecto solo en `development`) | `true` en desarrollo |
+| `JWT_SECRET` | Clave de firma de los tokens. **Obligatoria en producción** (mínimo 32 caracteres). Si falta en otros entornos se usa una clave aleatoria por proceso y los tokens dejan de valer al reiniciar. | *(ninguno)* |
+| `JWT_EXPIRES_IN` | Vigencia de los tokens de usuarios registrados (`30d`, `12h` o un número de segundos) | `30d` |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del administrador inicial (la contraseña requiere 8+ caracteres). Si están vacías no se crea ningún administrador. | *(vacío)* |
+| `ADMIN_NAME` | Nombre visible del administrador inicial | `Administrator` |
+| `GEODEX_API_URL` | URL base de la API GeoDex | `https://geodex-ml-api-76365064073.southamerica-west1.run.app` |
+| `GEODEX_API_KEY` | API key de GeoDex. Sin ella se usa el clasificador heurístico. | *(vacío)* |
+| `GEODEX_TIMEOUT_MS` | Tiempo máximo de espera de GeoDex (una consulta tarda 5–15 s) | `30000` |
+| `ML_SERVER_URL` | Microservicio ML local opcional (vacío = deshabilitado) | *(vacío)* |
+| `ML_TIMEOUT_MS` | Tiempo máximo de espera del microservicio ML local | `4000` |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | Adjudicador asistido opcional | *(vacío)* / `gpt-4o-mini` |
+| `UPLOAD_DIR` | Carpeta de las imágenes enviadas a reconocimiento | `uploads/analyses` |
+| `SPECIMEN_UPLOAD_DIR` | Carpeta de las imágenes del catálogo | `uploads/specimens` |
+| `BCRYPT_ROUNDS` | Costo del hash de contraseñas | `10` (`4` en pruebas) |
 
-### Ejemplo de archivo `.env`:
+---
 
-```env
-PORT=8080
-NODE_ENV=development
-DATABASE_NAME=rock
-DATABASE_STORAGE=./rock.sqlite
-JWT_SECRET=tu_secreto_jwt_seguro_para_desarrollo
-JWT_EXPIRES_IN=30d
-ML_SERVER_URL=http://localhost:5000
-ML_TIMEOUT_MS=4000
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-UPLOAD_DIR=uploads/analyses
+## Base de Datos
+
+El esquema está definido en los modelos de [`src/models`](src/models) y en las migraciones de [`src/database/migrations`](src/database/migrations).
+
+| Comando | Descripción |
+|---|---|
+| `npm run db:init` | Crea las tablas que falten y carga los datos iniciales (idempotente). |
+| `npm run db:reset` | **Borra todo** y reconstruye el esquema desde cero con los datos iniciales. Con `NODE_ENV=production` exige confirmar con `npm run db:reset -- --yes`. |
+| `npm run db:seed` | Carga solo los datos iniciales (el esquema debe existir). |
+| `npm run db:migrate` | Aplica las migraciones pendientes. |
+| `npm run db:migrate:status` | Muestra qué migraciones están aplicadas. |
+| `npm run db:migrate:undo` | Revierte la última migración. |
+
+### Datos iniciales (seeders)
+
+Se cargan desde [`src/database/seeders.js`](src/database/seeders.js) y son idempotentes: pueden ejecutarse varias veces y nunca sobrescriben lo que un administrador haya editado.
+
+* **Roles**: `guest`, `user`, `admin`.
+* **Usuario administrador**: creado con `ADMIN_EMAIL` y `ADMIN_PASSWORD` (contraseña almacenada con hash bcrypt). No existen credenciales por defecto.
+* **Categorías**: `mineral`, `igneous_rock`, `sedimentary_rock`, `metamorphic_rock`.
+* **Tipos**: `silicato`, `oxido`, `sulfuro`, `carbonato`.
+* **Catálogo**: 12 especímenes, cada uno asociado a una categoría y un tipo.
+* **Logros**: seis logros automáticos con su regla de desbloqueo.
+* **Cuestionario** de ejemplo.
+
+### Actualizar una base de datos existente
+
+Las tablas ya creadas no se modifican solas. Si el servidor informa que *el esquema de la base de datos está desactualizado*, aplique las migraciones:
+
+```bash
+npm run db:migrate
+npm run db:seed
 ```
+
+o reconstruya la base desde cero con `npm run db:reset` (elimina los datos). Las migraciones pueden aplicarse tanto sobre una base vacía como sobre una creada con una versión anterior.
 
 ---
 
 ## Ejecución
 
-### Modo Desarrollo
-Inicia el servidor con recarga en caliente automática ante cambios en el código fuente mediante `nodemon`:
 ```bash
-npm run dev
+npm run dev      # desarrollo, con recarga automática (nodemon)
+npm start        # producción
+npm test         # suite de pruebas
 ```
 
-### Modo Producción
-Inicia el servidor en modo estándar mediante Node.js:
-```bash
-npm start
+---
+
+## Reglas de Negocio
+
+### Sesiones de invitado
+
+* `POST /auth/anonymous` crea una sesión temporal guardada en la base de datos; su identificador es un UUID v4 protegido por el token JWT.
+* Cada sesión admite **10 reconocimientos**. Al intentar el undécimo, la API responde `403` con `errorCode: "GUEST_LIMIT_REACHED"` (y `details.registration_required: true`) para que la aplicación pida crear la cuenta. El límite se comprueba antes de recibir la imagen y de nuevo, de forma atómica, al guardar el resultado, por lo que solicitudes simultáneas no pueden superarlo. Las imágenes rechazadas (por no ser rocas) no cuentan.
+* Un invitado puede obtener logros y ver su progreso y cuota restante en `GET /collection/progress`.
+* Al registrarse enviando el `guest_token`, la misma cuenta pasa a ser un usuario registrado: **reconocimientos, descubrimientos y logros se conservan**. La sesión temporal se **invalida** en ese momento (el token anterior deja de funcionar) y no puede transferirse a una segunda cuenta.
+
+### Colección personal
+
+* Cada reconocimiento registra automáticamente la roca identificada en la colección del usuario; no existe un endpoint para agregar o quitar entradas manualmente.
+* Una roca nunca se duplica: se conserva la **fecha del primer descubrimiento** y un contador (`occurrences_count`, con `additional_recognitions` para los reconocimientos adicionales).
+* Cada usuario solo consulta su propia colección. El usuario puede anotar sus descubrimientos (`notes`, `is_favorite`, `custom_image_url`).
+
+### Logros
+
+Los administradores definen cada logro con un tipo de condición, un umbral y un parámetro opcional:
+
+| `condition_type` | Se cumple cuando... | `condition_value` |
+|---|---|---|
+| `FIRST_SCAN` / `TOTAL_SCANS` | el usuario acumula `required_count` reconocimientos | — |
+| `UNIQUE_SPECIMENS` | descubre `required_count` rocas distintas | — |
+| `CATEGORY_SPECIMENS` | descubre `required_count` rocas de una categoría | id de la categoría |
+| `REFINEMENTS` | refina `required_count` reconocimientos | — |
+| `QUIZ_SCORE` | aprueba `required_count` cuestionarios con al menos ese puntaje | puntaje mínimo (por defecto 60) |
+
+Cada logro se otorga una sola vez y registra su fecha de desbloqueo y su recompensa de experiencia. Eliminar un logro en el panel de administración lo **desactiva** (deja de otorgarse) sin perder el historial de quienes ya lo obtuvieron.
+
+### Retroalimentación
+
+Solo los usuarios registrados pueden evaluar un reconocimiento, y únicamente los propios. Cada reconocimiento admite **una** evaluación (`correct`, `incorrect` o `uncertain`, con comentario opcional), que su autor puede consultar y actualizar. El administrador puede consultarlas todas.
+
+### Tipos y categorías
+
+Son dos entidades independientes, con nombres únicos (se normalizan: `"Oxido"` y `" oxido "` son el mismo). Un tipo o una categoría **con rocas asociadas no puede eliminarse**. Toda roca exige tipo, categoría, descripción e imagen.
+
+---
+
+## Documentación de la API
+
+Todas las rutas se exponen en la raíz (`/`). Las respuestas usan una estructura uniforme:
+
+```json
+{ "success": true, "statusCode": 200, "message": "Operación completada", "data": { } }
+```
+```json
+{ "success": false, "statusCode": 403, "errorCode": "403_FORBIDDEN", "message": "...", "details": null }
 ```
 
-### Inicialización de Datos
-Para recrear las tablas y sembrar el catálogo taxonómico desde cero:
+Las rutas protegidas requieren la cabecera `Authorization: Bearer <token>`. Niveles de acceso: **Público**, **Sesión** (invitado o registrado), **Registrado** (usuario o administrador, no invitados) y **Admin**.
+
+| Código HTTP | `errorCode` | Situación |
+|---|---|---|
+| 400 | `400_VALIDATION_ERROR` | Datos inválidos o incompletos |
+| 401 | `401_UNAUTHORIZED` | Token ausente, inválido, vencido o sesión invalidada |
+| 403 | `403_FORBIDDEN` | Sin permiso o cuenta suspendida |
+| 403 | `GUEST_LIMIT_REACHED` | La sesión de invitado agotó sus 10 reconocimientos |
+| 404 | `404_NOT_FOUND` | Recurso inexistente |
+| 409 | `409_CONFLICT` | Duplicado o conflicto con otros registros |
+| 422 | `422_NON_SPECIMEN_IMAGE` | La imagen no corresponde a una roca o mineral |
+| 500 | `500_INTERNAL_SERVER_ERROR` | Error interno (sin detalles internos en la respuesta) |
+
+### Autenticación (`/auth`)
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `POST` | `/auth/anonymous` | Público | Crea una sesión de invitado. |
+| `POST` | `/auth/register` | Público | Registra una cuenta (`email`, `password`, `userName`, `phone`, `display_name`). Con `guest_token` migra la sesión de invitado. |
+| `POST` | `/auth/login` | Público | Inicia sesión con correo y contraseña. |
+| `DELETE` | `/auth/account` | Sesión | Baja lógica de la cuenta. |
+
+Alias de compatibilidad: `/auth/registro`, `/api/user/registro`, `/api/user/login`.
+
+### Perfil (`/user`)
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `GET` | `/user/profile` | Sesión | Perfil, nivel y cuota restante de invitado. |
+| `PATCH` | `/user/profile` | Sesión | Actualiza `display_name`, `userName`, `phone`, `avatar_url` (cualquier otro campo se ignora). |
+| `GET` / `PUT` | `/user/preferences` | Sesión | Consulta / actualiza preferencias. |
+
+### Catálogo de rocas
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `GET` | `/rock` | Público | Catálogo completo. Filtros: `category_id`, `category`, `type_id`, `type`, `rarity`, `magnetism`, `q`; paginación opcional (`page`, `limit`). |
+| `GET` | `/rock/:id` | Público | Detalle de una roca (por id o índice de catálogo). |
+| `POST` | `/rock` | Admin | Crea una roca. Datos JSON (con `imgUrl`) o `multipart/form-data` con el archivo `image`. Obligatorios: nombre, descripción, `categoryId`, `typeId` e imagen. |
+| `PATCH` / `PUT` | `/rock/:id` | Admin | Actualiza una roca (también permite `is_active` para desactivarla). |
+| `DELETE` | `/rock/:id` | Admin | Elimina la roca del catálogo (baja lógica). |
+| `GET` | `/specimen`, `/specimen/:id`, `/specimen/categories` | Público | Vista paginada del catálogo (20 por página), ficha de una roca y categorías con conteo. |
+
+Alias de compatibilidad: `/api/rock`, `/rock/agregar`, `/rock/actualizar/:id`, `/rock/eliminar/:id`.
+
+### Tipos y categorías (`/type`, `/category`)
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `GET` | `/category`, `/type` | Público | Lista con la cantidad de rocas de cada una. |
+| `GET` | `/category/:id`, `/type/:id` | Público | Detalle. |
+| `GET` | `/category/:id/rocks`, `/type/:id/rocks` | Público | Rocas pertenecientes al tipo o categoría. |
+| `POST` | `/category`, `/type` | Admin | Crea (`name`, `description`). |
+| `PUT` / `PATCH` | `/category/:id`, `/type/:id` | Admin | Actualiza. |
+| `DELETE` | `/category/:id`, `/type/:id` | Admin | Elimina, salvo que tenga rocas asociadas. |
+
+### Reconocimiento (`/analysis`)
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `POST` | `/analysis` | Sesión | Recibe una imagen (`multipart/form-data`, campo `image`; JPEG, PNG o WebP de hasta 8 MB), la valida, la reconoce, la registra y actualiza colección, experiencia y logros. La respuesta incluye `discovery` y `unlocked_achievements`. |
+| `GET` | `/analysis` | Sesión | Historial de reconocimientos propios (paginado). |
+| `GET` | `/analysis/:id` | Sesión | Detalle de un reconocimiento (su dueño o un administrador). |
+| `POST` | `/analysis/:id/refine` | Sesión | Envía respuestas físicas (dureza, raya, magnetismo) para refinar un reconocimiento propio. |
+
+### Colección y progreso (`/collection`)
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `GET` | `/collection` | Sesión | Colección propia. Filtros: `category`, `category_id`, `favorite`; `include_locked=true` incluye las rocas aún no descubiertas. |
+| `GET` | `/collection/progress` | Sesión | Total de reconocimientos, rocas distintas descubiertas, porcentaje del catálogo, desglose por categoría y tipo, logros desbloqueados, experiencia e historial de actividad (`activity_limit`). |
+| `GET` | `/collection/:specimenId` | Sesión | Detalle de una roca descubierta: fecha del primer descubrimiento, contador y reconocimientos asociados. |
+| `PATCH` | `/collection/:specimenId` | Sesión | Anota un descubrimiento (`notes`, `is_favorite`, `custom_image_url`). |
+
+### Logros y cuestionarios
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `GET` | `/achievement` | Sesión | Logros con el progreso del usuario. `?status=unlocked` o `locked`. |
+| `GET` | `/quiz`, `/quiz/:id` | Sesión | Cuestionarios y sus preguntas. |
+| `POST` | `/quiz/:id/submit` | Sesión | Evalúa las respuestas, acredita experiencia y evalúa logros. |
+
+### Retroalimentación y telemetría (`/feedback`, `/event`)
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|:---:|---|
+| `POST` | `/feedback/analysis/:analysisId` | Registrado | Evalúa un reconocimiento propio (`rating`, `comments`, `suggested_specimen_id`). Una evaluación por reconocimiento. |
+| `GET` | `/feedback/analysis/:analysisId` | Registrado | Consulta la evaluación (su autor o un administrador). |
+| `PUT` | `/feedback/analysis/:analysisId` | Registrado | Actualiza la evaluación propia. |
+| `GET` | `/feedback/me` | Registrado | Evaluaciones enviadas por el usuario. |
+| `POST` | `/event` | Público | Registra un evento de telemetría (el token es opcional). |
+
+### Administración (`/admin`)
+
+Todas las rutas exigen sesión válida **y** rol `admin`.
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/admin/users` | Usuarios registrados (paginado). Filtros: `role`, `status`, `q`, `is_anonymous=all\|true`. |
+| `GET` | `/admin/users/:id` | Ficha del usuario: perfil, progreso, colección y logros. |
+| `GET` | `/admin/users/:id/collection` | Colección del usuario. |
+| `GET` | `/admin/users/:id/achievements` | Logros obtenidos y bloqueados del usuario. |
+| `PATCH` | `/admin/users/:id/role` | Cambia el rol (`user` / `admin`). |
+| `PATCH` | `/admin/users/:id/status` | Cambia el estado (`active` / `suspended` / `banned`). |
+| `GET` | `/admin/stats` | Usuarios registrados, total de reconocimientos, rocas más reconocidas (`top`), retroalimentación y tasa de aciertos, logros. |
+| `GET` | `/admin/history` | Historial de reconocimientos (filtros `user_id`, `specimen_id`, `from`, `to`, `status`). |
+| `GET` | `/admin/feedback` | Todas las evaluaciones de los usuarios (filtros `rating`, `user_id`). |
+| `GET` / `POST` | `/admin/achievements` | Lista todos los logros / crea uno. |
+| `GET` / `PUT` / `PATCH` | `/admin/achievements/:id` | Consulta / actualiza un logro. |
+| `DELETE` | `/admin/achievements/:id` | Desactiva un logro (conserva el historial). |
+
+Reglas de protección: un administrador nunca puede degradarse ni suspenderse si es el último administrador activo; no se puede cambiar el rol de una sesión de invitado; una cuenta suspendida pierde el acceso de inmediato, incluso con un token vigente.
+
+---
+
+## Reconocimiento con GeoDex
+
+El reconocimiento usa la API **GeoDex** (`POST /api/v1/identify`). Para obtener una API key debe solicitarse una invitación y registrarse en `<GEODEX_API_URL>/signup`; luego se define en `GEODEX_API_KEY`.
+
+Flujo de cada reconocimiento:
+
+1. **Validación previa**: si la imagen no parece una roca se responde `422 NON_SPECIMEN_IMAGE` y el archivo se elimina.
+2. **GeoDex**: se envía la imagen (base64) junto con el catálogo local como `candidates`; la respuesta se asocia a las rocas del catálogo por su `specimen_id`. Las identificaciones que no coinciden con una roca del catálogo se descartan. GeoDex informa la confianza como porcentaje (97 = 97 %) y el sistema la convierte a la escala 0–1 que usa el resto de la API.
+3. **Respaldo**: si GeoDex no está configurado, tarda más de `GEODEX_TIMEOUT_MS`, supera su cuota diaria o no devuelve un resultado aprovechable, se usa el clasificador heurístico local; así el sistema funciona completo sin depender del servicio externo. El motivo de cada intento queda guardado en `raw_ai_response.provider_attempts` del análisis.
+4. **Adjudicador asistido** (opcional) para resultados con confianza intermedia.
+
+### Cuota de la API key
+
+Cada key tiene una cuota diaria (la de este proyecto es de **50 consultas por día**) que se renueva a las 00:00 UTC. Una consulta tarda entre 5 y 15 segundos, por eso `GEODEX_TIMEOUT_MS` vale 30000 por defecto: una consulta abortada antes de tiempo igualmente se descuenta de la cuota. Para no gastarla:
+
+* Una foto que ya fue consultada (mismo archivo y mismo catálogo) se responde desde memoria, sin llamar a GeoDex. La memoria guarda las últimas 100 fotos y se vacía al reiniciar el servidor.
+* Si GeoDex rechaza la key o la cuota (HTTP 401, 403 o 429), el servidor deja de consultarlo durante 15 minutos (o el plazo que indique `Retry-After`) y los reconocimientos siguen con el clasificador local, sin volver a subir la imagen.
+* Las pruebas automatizadas nunca llaman a GeoDex, de modo que no consumen la cuota.
+
+El consumo del día se consulta con:
+
 ```bash
-node src/database/init.js
+curl -H "Authorization: Bearer $GEODEX_API_KEY" "$GEODEX_API_URL/api/v1/key/usage"
+# {"success":true,...,"daily_quota":50,"used_today":3,"remaining":47,"resets_at":"2026-10-02T00:00:00+00:00"}
 ```
 
 ---
 
 ## Estructura del Proyecto
 
-El código fuente sigue una separación de responsabilidades estricta por capas:
-
 ```text
 ProjectDSM_2026_2/
-├── docs/                      # Especificaciones técnicas, modelo de datos y requerimientos
-│   ├── backend_architecture.md
-│   ├── backend_implementation_plan.md
-│   ├── database_design.md
-│   └── requirements.md
-├── src/                       # Código fuente de la aplicación
-│   ├── config/                # Constantes de dominio, configuración de base de datos y entorno
-│   │   ├── constants.js
-│   │   ├── database.js
-│   │   └── env.js
-│   ├── controllers/           # Controladores HTTP desacoplados por entidad
-│   │   ├── achievement.controller.js
-│   │   ├── analysis.controller.js
-│   │   ├── auth.controller.js
-│   │   ├── catalog.controller.js
-│   │   ├── collection.controller.js
-│   │   ├── event.controller.js
-│   │   ├── feedback.controller.js
-│   │   ├── quiz.controller.js
-│   │   └── user.controller.js
-│   ├── database/              # Scripts de inicialización y carga de datos maestros (seeders)
-│   │   ├── init.js
-│   │   └── seeders.js
-│   ├── middlewares/           # Interceptores de autenticación JWT, subida de archivos y errores
-│   │   ├── auth.middleware.js
-│   │   ├── error.middleware.js
-│   │   └── upload.middleware.js
-│   ├── models/                # Modelos relacionales Sequelize (convención singular en inglés)
-│   │   ├── achievement.model.js
-│   │   ├── analysis.model.js
-│   │   ├── analysis_candidate.model.js
-│   │   ├── analysis_refinement.model.js
-│   │   ├── collection_item.model.js
-│   │   ├── feedback.model.js
-│   │   ├── index.js
-│   │   ├── notification.model.js
-│   │   ├── quiz.model.js
-│   │   ├── quiz_question.model.js
-│   │   ├── specimen.model.js
-│   │   ├── user.model.js
-│   │   ├── user_achievement.model.js
-│   │   ├── user_event.model.js
-│   │   ├── user_preference.model.js
-│   │   └── user_quiz_attempt.model.js
-│   ├── routers/               # Definición y agrupamiento de rutas HTTP
-│   │   ├── achievement.router.js
-│   │   ├── analysis.router.js
-│   │   ├── api.router.js
-│   │   ├── auth.router.js
-│   │   ├── catalog.router.js
-│   │   ├── collection.router.js
-│   │   ├── event.router.js
-│   │   ├── feedback.router.js
-│   │   ├── quiz.router.js
-│   │   └── user.router.js
-│   ├── services/              # Capa de lógica de negocio y proveedores
-│   │   ├── ai/                # Clientes para ML externo y adjudicador OpenAI
-│   │   ├── analysis/          # Orquestador del pipeline y preprocesamiento de imágenes
-│   │   ├── gamification/      # Lógica de asignación de logros y niveles de experiencia
-│   │   └── heuristics/        # Motor de clasificación por reglas físicas de respaldo
-│   ├── utils/                 # Utilidades de servidor, formateo de respuestas y UUID
-│   │   ├── response_formatter.js
-│   │   ├── server.js
-│   │   └── uuid.js
-│   └── index.js               # Punto de entrada principal de la aplicación
-├── tests/                     # Suite de pruebas automatizadas con Jest y Supertest
-│   ├── fixtures/              # Muestras e imágenes sintéticas para pruebas de integración
-│   ├── setup.js               # Configuración global del arnés de pruebas
-│   ├── analysis.test.js
-│   ├── auth.test.js
-│   ├── catalog.test.js
-│   ├── collection.test.js
-│   ├── event.test.js
-│   └── quiz.test.js
-├── uploads/                   # Directorio físico donde se almacenan las imágenes recibidas
-├── .env                       # Configuración de variables de entorno local
-├── package.json               # Dependencias y scripts de automatización del proyecto
-└── README.md                  # Documentación técnica principal del proyecto
+├── src/
+│   ├── config/                # Constantes de dominio, variables de entorno, conexión y configuración de sequelize-cli
+│   ├── controllers/           # Controladores HTTP (auth, user, rock, taxonomy, analysis, collection, achievement, feedback, quiz, event, admin)
+│   ├── database/
+│   │   ├── migrations/        # Migraciones de sequelize-cli
+│   │   ├── init.js            # Creación del esquema y carga inicial (db:init, db:reset, db:seed)
+│   │   └── seeders.js         # Datos iniciales idempotentes
+│   ├── middlewares/           # Autenticación y autorización por rol, validación, carga de archivos, cuota de invitados y errores
+│   ├── models/                # Modelos Sequelize y sus relaciones
+│   ├── routers/               # Definición de rutas (incluye /admin, /category y /type)
+│   ├── services/
+│   │   ├── ai/                # Clientes de GeoDex, microservicio ML local y adjudicador
+│   │   ├── analysis/          # Orquestación del reconocimiento y preprocesamiento de imágenes
+│   │   ├── gamification/      # Logros configurables y experiencia
+│   │   ├── heuristics/        # Clasificador heurístico de respaldo
+│   │   └── *.service.js       # Catálogo, colección, cuota de invitados, estadísticas, usuarios y tokens
+│   ├── utils/                 # Servidor, formato de respuestas, utilidades de archivos, exclusión mutua y UUID
+│   ├── validations/           # Esquemas Zod de cada recurso
+│   └── index.js               # Punto de entrada
+├── tests/                     # Pruebas con Jest y Supertest (fixtures y utilidades compartidas)
+├── uploads/                   # Imágenes recibidas (no se versiona)
+├── .env.example               # Plantilla de configuración
+├── .sequelizerc               # Rutas de sequelize-cli
+├── package.json
+└── README.md
 ```
-
----
-
-## Documentación de la API
-
-Todas las rutas públicas y protegidas se exponen de forma directa y limpia bajo la raíz (`/`). Las respuestas exitosas y de error emplean una estructura JSON uniforme:
-
-```json
-{
-  "success": true,
-  "data": { ... },
-  "message": "Operación completada exitosamente"
-}
-```
-
-### 1. Autenticación (`/auth`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `POST` | `/auth/anonymous` | No | Crea una sesión anónima de invitado y devuelve un token JWT temporal. |
-| `POST` | `/auth/register` | No | Registra una cuenta formal (`email`, `password`, `username`) y migra colecciones anónimas previas asociadas al token. |
-| `POST` | `/auth/login` | No | Autentica un usuario registrado mediante credenciales y genera un token JWT. |
-| `DELETE` | `/auth/account` | Bearer Token | Ejecuta la baja lógica (*soft delete*) de la cuenta del usuario autenticado. |
-
-### 2. Perfil y Preferencias de Usuario (`/user`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `GET` | `/user/profile` | Bearer Token | Obtiene la información del perfil del usuario en sesión. |
-| `GET` | `/user/preferences` | Bearer Token | Consulta las configuraciones y preferencias personalizadas del usuario. |
-| `PUT` | `/user/preferences` | Bearer Token | Actualiza las preferencias del usuario (notificaciones, unidades, etc.). |
-
-### 3. Catálogo de Especímenes (`/specimen`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `GET` | `/specimen` | No | Retorna el catálogo con soporte de paginación y filtros (`type`, `hardness`, búsqueda textual). |
-| `GET` | `/specimen/categories` | No | Provee métricas y conteo de especímenes agrupados por clases taxonómicas. |
-| `GET` | `/specimen/:id` | No | Entrega la ficha técnica completa de un mineral o roca por su identificador UUID. |
-
-### 4. Análisis e Identificación (`/analysis`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `POST` | `/analysis` | Bearer Token | Recibe una imagen (`multipart/form-data`, campo `image`), valida que sea un espécimen válido y ejecuta el pipeline de identificación. |
-| `GET` | `/analysis/:id` | Bearer Token | Consulta el resultado de un análisis previo, lista de candidatos y niveles de confianza calculados. |
-| `POST` | `/analysis/:id/refine` | Bearer Token | Envía atributos físicos observados (dureza, raya, magnetismo) para refinar y desempatar los candidatos clasificados. |
-
-> **Nota**: Si la imagen enviada a `POST /analysis` no corresponde a un mineral o roca reconocible, el servidor responde con código `422 Unprocessable Entity` y el mensaje estructurado `NON_SPECIMEN_IMAGE`.
-
-### 5. Colección Personal (`/collection`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `POST` | `/collection` | Bearer Token | Agrega un espécimen identificado a la colección del usuario activo. |
-| `GET` | `/collection` | Bearer Token | Lista los especímenes descubiertos y bloqueados en la colección del usuario. |
-| `GET` | `/collection/progress` | Bearer Token | Calcula el porcentaje de completitud de la colección clasificado por categorías geológicas. |
-| `DELETE` | `/collection/:id` | Bearer Token | Elimina una muestra registrada de la colección del usuario. |
-
-### 6. Cuestionarios Educativos (`/quiz`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `GET` | `/quiz` | Bearer Token | Obtiene la lista de cuestionarios disponibles clasificados por nivel de dificultad. |
-| `GET` | `/quiz/:id` | Bearer Token | Obtiene las preguntas y opciones de un cuestionario específico. |
-| `POST` | `/quiz/:id/submit` | Bearer Token | Evalúa las respuestas enviadas, calcula el puntaje obtenido y acredita puntos de experiencia (XP). |
-
-### 7. Logros y Gamificación (`/achievement`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `GET` | `/achievement` | Bearer Token | Consulta el listado de logros del sistema con el estado de desbloqueo y progreso del usuario. |
-
-### 8. Feedback y Telemetría (`/feedback`, `/event`)
-
-| Método | Endpoint | Autenticación | Descripción |
-|---|---|:---:|---|
-| `POST` | `/feedback/:id` | Opcional | Permite al usuario calificar la precisión del análisis obtenido (`accuracy_rating`, comentarios). |
-| `POST` | `/event` | Opcional | Registra eventos de telemetría e interacción dentro de la plataforma. |
 
 ---
 
 ## Pruebas
 
-El proyecto cuenta con una suite integral de pruebas unitarias y de integración construida con [Jest](https://jestjs.io/) y [Supertest](https://github.com/ladjs/supertest).
-
-### Ejecución de Pruebas
-
-Para ejecutar la suite completa de pruebas:
-
 ```bash
 npm test
 ```
 
-Este comando ejecuta las pruebas de forma secuencial (`--runInBand`), garantizando aislamiento en la base de datos temporal y forzando la liberación ordenada de conexiones activas.
+Las pruebas (Jest + Supertest) son herméticas: cada archivo usa su propia base de datos temporal, construida desde los modelos, con sus imágenes en una carpeta temporal y con la configuración fijada por [`tests/setup.js`](tests/setup.js), sin importar el contenido del `.env`. Nunca llaman a proveedores externos y se ejecutan en paralelo.
 
-### Cobertura de la Suite
+| Archivo | Cubre |
+|---|---|
+| [`tests/auth.test.js`](tests/auth.test.js) | Registro, inicio de sesión, hash de contraseñas, tokens, estado de cuenta, perfil, protección del último administrador y registros simultáneos. |
+| [`tests/guest.test.js`](tests/guest.test.js) | Límite de 10 reconocimientos (incluso en paralelo), logros de invitados, migración a cuenta e invalidación del token. |
+| [`tests/rock.test.js`](tests/rock.test.js) | CRUD de rocas protegido por rol, campos obligatorios, filtros, paginación y subida de imágenes. |
+| [`tests/taxonomy.test.js`](tests/taxonomy.test.js) | CRUD de tipos y categorías, nombres únicos normalizados y bloqueo al eliminar con rocas asociadas. |
+| [`tests/analysis.test.js`](tests/analysis.test.js) | Reconocimiento, rechazo 422, limpieza de archivos, propiedad de los análisis y refinamiento. |
+| [`tests/collection.test.js`](tests/collection.test.js) | Colección automática, contador de reconocimientos, fecha del primer descubrimiento, progreso y estadísticas. |
+| [`tests/achievement.test.js`](tests/achievement.test.js) | Desbloqueo de logros, logros configurables por datos, CRUD de administración y desactivación. |
+| [`tests/feedback.test.js`](tests/feedback.test.js) | Reglas de retroalimentación: solo registrados, solo reconocimientos propios y una evaluación por reconocimiento. |
+| [`tests/admin.test.js`](tests/admin.test.js) | Control de acceso de `/admin`, usuarios, roles, estados, estadísticas, historial y feedback. |
+| [`tests/geodex.test.js`](tests/geodex.test.js) | Cliente de GeoDex (con una respuesta real del servicio como fixture): interpretación de respuestas, pausa ante cuota agotada, memoria de fotos repetidas y respaldo heurístico. |
+| [`tests/concurrency.test.js`](tests/concurrency.test.js) | Cola de escrituras: exclusión mutua, tiempo de espera máximo y reglas de las transacciones anidadas. |
+| [`tests/seeders.test.js`](tests/seeders.test.js), [`tests/migrations.test.js`](tests/migrations.test.js), [`tests/database.test.js`](tests/database.test.js) | Datos iniciales, administrador sembrado, migraciones, detección de esquemas desactualizados y la confirmación `--yes` de `db:reset` en producción. |
+| [`tests/security.test.js`](tests/security.test.js), [`tests/config.test.js`](tests/config.test.js) | Cuerpos vacíos o mal formados, errores sin detalles internos, cabeceras, secretos y configuración. |
+| [`tests/catalog.test.js`](tests/catalog.test.js), [`tests/quiz.test.js`](tests/quiz.test.js), [`tests/event.test.js`](tests/event.test.js) | Catálogo público, cuestionarios y telemetría. |
 
-* **Autenticación ([`tests/auth.test.js`](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/tests/auth.test.js))**: Pruebas de sesiones anónimas, registro de usuarios, login con credenciales válidas e inválidas, protección de rutas y eliminación de cuenta.
-* **Catálogo ([`tests/catalog.test.js`](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/tests/catalog.test.js))**: Listado con filtros, agrupación taxonómica y consulta de fichas técnicas por identificador.
-* **Análisis ([`tests/analysis.test.js`](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/tests/analysis.test.js))**: Flujo de carga de imágenes con Multer, validación de error 422 para no-especímenes, fallback heurístico y refinamiento interactivo de resultados.
-* **Colección ([`tests/collection.test.js`](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/tests/collection.test.js))**: Adición y remoción de muestras, cálculo de progreso y prevención de registros duplicados.
-* **Cuestionarios ([`tests/quiz.test.js`](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/tests/quiz.test.js))**: Obtención de preguntas y evaluación con asignación de puntajes.
-* **Eventos ([`tests/event.test.js`](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/tests/event.test.js))**: Registro de telemetría con usuario anónimo o autenticado.
+---
+
+## Cambios respecto a la versión anterior
+
+Para quien consuma la API desde la aplicación móvil:
+
+* **Sesiones**: los tokens ahora llevan una versión de sesión. Al crear una cuenta desde una sesión de invitado, o al suspender/bloquear/eliminar una cuenta, los tokens anteriores dejan de valer (los emitidos antes de esta versión siguen siendo válidos hasta ese momento). Los correos se comparan en minúsculas.
+* **Colección**: `POST /collection` y `DELETE /collection/:id` ya no existen; los descubrimientos se registran solos al reconocer. Se agregan `GET /collection/:specimenId` y `PATCH /collection/:specimenId`.
+* **Feedback**: `POST /feedback/:id` pasó a `POST /feedback/analysis/:analysisId` (solo usuarios registrados, una evaluación por reconocimiento).
+* **Catálogo**: toda roca exige tipo, categoría, descripción e imagen; `GET /rock` lista solo las rocas activas (los administradores pueden pedir las inactivas con `include_inactive=true`). Un `limit` mayor a 100 se reduce a 100.
+* **Validaciones más estrictas**: `theme` solo admite `light`, `dark` o `system`; los booleanos de las preferencias deben ser `true`/`false`; `magnetism` admite `true`, `false`, `1` o `0`.
+* **Imágenes**: el límite de subida baja de 10 MB a 8 MB y la extensión guardada depende del tipo de imagen, no del nombre del archivo.
+* **Cuestionarios**: la experiencia se acredita una vez por cuestionario (primer aprobado; un primer intento fallido paga una fracción) y las preguntas sin responder pueden enviarse como `null`.
+* **Cuenta eliminada**: sus datos personales se borran y el correo puede registrarse de nuevo.
 
 ---
 
@@ -353,4 +437,4 @@ Este comando ejecuta las pruebas de forma secuencial (`--runInBand`), garantizan
 
 ### Licencia
 
-Este proyecto está licenciado bajo los términos de la licencia **GNU Affero General Public License v3.0 o posterior** ([AGPL-3.0-or-later](file:///home/kripi/Documentos/GitHub/ProjectDSM_2026_2/package.json)).
+Este proyecto está licenciado bajo los términos de la licencia **GNU Affero General Public License v3.0 o posterior** (ver el campo `license` de [`package.json`](package.json)).

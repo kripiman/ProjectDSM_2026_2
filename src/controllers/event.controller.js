@@ -1,7 +1,7 @@
 const { uuidv4 } = require('../utils/uuid');
 const { UserEvent } = require('../models');
 const { successResponse } = require('../utils/response_formatter');
-const { AppError } = require('../middlewares/error.middleware');
+const { AppError } = require('../utils/app_error');
 const { ERROR_CODES } = require('../config/constants');
 
 const logEvent = async (req, res, next) => {

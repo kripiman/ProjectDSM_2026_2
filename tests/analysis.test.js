@@ -61,7 +61,8 @@ describe('Automated Analysis & Fallback Pipeline APIs (HU-03, HU-04, HU-05, HU-0
     expect(res.body.data.id).toBe(analysisId);
     expect(res.body.data.candidates.length).toBeGreaterThanOrEqual(1);
     expect(res.body.data.educational_explanation).toBeDefined();
-    expect(res.body.data.image_url).toMatch(/^\/uploads\/analyses\/[0-9a-f-]+\.jpg$/);
+    // Photos are private: the address points at the authenticated endpoint, not at a file.
+    expect(res.body.data.image_url).toBe(`/analysis/${analysisId}/image`);
   });
 
   test('POST /analysis/:id/refine - Should submit physical refinement answers (HU-06)', async () => {
@@ -124,9 +125,9 @@ describe('Uploaded images', () => {
       .expect(200);
 
     expect(res.body.data).toBeDefined();
-    const analysis = await Analysis.findByPk(res.body.data.analysis_id);
-    expect(analysis.image_url).toMatch(/\.png$/);
-    expect(analysis.image_url).not.toMatch(/html/);
+    const stored = (await Analysis.findByPk(res.body.data.analysis_id)).image_file;
+    expect(stored).toMatch(/^[0-9a-f-]+\.png$/);
+    expect(stored).not.toMatch(/html/);
   });
 
   test('images above 8 MB are rejected and leave nothing behind', async () => {

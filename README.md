@@ -112,6 +112,9 @@ Todas se leen en [`src/config/env.js`](src/config/env.js). La plantilla completa
 | `UPLOAD_DIR` | Carpeta de las imágenes enviadas a reconocimiento | `uploads/analyses` |
 | `SPECIMEN_UPLOAD_DIR` | Carpeta de las imágenes del catálogo | `uploads/specimens` |
 | `BCRYPT_ROUNDS` | Costo del hash de contraseñas | `10` (`4` en pruebas) |
+| `LOGIN_MAX_ATTEMPTS` | Intentos de login fallidos permitidos por dirección IP y correo antes de bloquearlos | `3` |
+| `LOGIN_LOCK_MINUTES` | Minutos que dura ese bloqueo | `15` |
+| `TRUST_PROXY` | Cantidad de proxies inversos delante del servidor (`1` si hay uno), `true`, `false` o un valor de Express (`loopback`, una subred). Determina de dónde sale la dirección IP del cliente. | `false` |
 
 ---
 
@@ -165,12 +168,30 @@ npm test         # suite de pruebas
 
 ## Reglas de Negocio
 
+### Inicio de sesión
+
+* `POST /auth/login` admite un número limitado de intentos fallidos por dirección IP y correo (`LOGIN_MAX_ATTEMPTS`, por defecto 3). Al agotarlos, los siguientes se rechazan con `429` y `errorCode: "TOO_MANY_LOGIN_ATTEMPTS"` durante `LOGIN_LOCK_MINUTES` (por defecto 15), **incluso con la contraseña correcta**. La respuesta trae la cabecera `Retry-After` y `details.retry_after_seconds` para avisar al usuario.
+* Un inicio de sesión exitoso reinicia el conteo. Un correo que no existe se trata igual que uno que existe (mismo conteo, mismo `401` y un tiempo de respuesta equivalente), de modo que el login no revela qué cuentas existen; el registro, en cambio, sí informa cuando un correo ya está en uso. Las solicitudes mal formadas (`400`) y el acceso con la contraseña correcta de una cuenta suspendida (`403`) no consumen intentos.
+* El conteo vive en memoria (se reinicia con el servidor), es compartido por `/auth/login` y su alias `/api/user/login` y no guarda los correos, solo una huella de ellos. Es una barrera contra adivinar la contraseña de una cuenta, no reemplaza la limitación por IP de un proxy inverso: probar una misma contraseña en muchas cuentas, o desde muchas direcciones, no se frena.
+* La dirección es la que Express ve en la conexión. Detrás de un proxy inverso o de un servicio de alojamiento todos los clientes compartirían la del proxy y cualquiera podría bloquear la cuenta de otra persona: configure `TRUST_PROXY` para tomarla de `X-Forwarded-For`. Con clientes que llegan directo déjelo en `false`; de lo contrario podrían elegir su propia dirección.
+
 ### Sesiones de invitado
 
 * `POST /auth/anonymous` crea una sesión temporal guardada en la base de datos; su identificador es un UUID v4 protegido por el token JWT.
 * Cada sesión admite **10 reconocimientos**. Al intentar el undécimo, la API responde `403` con `errorCode: "GUEST_LIMIT_REACHED"` (y `details.registration_required: true`) para que la aplicación pida crear la cuenta. El límite se comprueba antes de recibir la imagen y de nuevo, de forma atómica, al guardar el resultado, por lo que solicitudes simultáneas no pueden superarlo. Las imágenes rechazadas (por no ser rocas) no cuentan.
 * Un invitado puede obtener logros y ver su progreso y cuota restante en `GET /collection/progress`.
 * Al registrarse enviando el `guest_token`, la misma cuenta pasa a ser un usuario registrado: **reconocimientos, descubrimientos y logros se conservan**. La sesión temporal se **invalida** en ese momento (el token anterior deja de funcionar) y no puede transferirse a una segunda cuenta.
+
+### Fotos de los reconocimientos
+
+Las fotos enviadas a reconocimiento son privadas: no existe una URL pública de archivo. El campo `image_url` de cualquier respuesta es la ruta `/analysis/:id/image`, que solo entrega la foto a su dueño (también una sesión de invitado) y a los administradores. El cliente la pide con su token, como el resto de las llamadas:
+
+```js
+// React Native
+<Image source={{ uri: `${API}${analysis.image_url}`, headers: { Authorization: `Bearer ${token}` } }} />
+```
+
+Las imágenes del catálogo (`/uploads/specimens/...`) siguen siendo públicas.
 
 ### Colección personal
 
@@ -224,6 +245,7 @@ Las rutas protegidas requieren la cabecera `Authorization: Bearer <token>`. Nive
 | 404 | `404_NOT_FOUND` | Recurso inexistente |
 | 409 | `409_CONFLICT` | Duplicado o conflicto con otros registros |
 | 422 | `422_NON_SPECIMEN_IMAGE` | La imagen no corresponde a una roca o mineral |
+| 429 | `TOO_MANY_LOGIN_ATTEMPTS` | Se agotaron los intentos de login (ver [Inicio de sesión](#inicio-de-sesión)) |
 | 500 | `500_INTERNAL_SERVER_ERROR` | Error interno (sin detalles internos en la respuesta) |
 
 ### Autenticación (`/auth`)
@@ -232,7 +254,7 @@ Las rutas protegidas requieren la cabecera `Authorization: Bearer <token>`. Nive
 |---|---|:---:|---|
 | `POST` | `/auth/anonymous` | Público | Crea una sesión de invitado. |
 | `POST` | `/auth/register` | Público | Registra una cuenta (`email`, `password`, `userName`, `phone`, `display_name`). Con `guest_token` migra la sesión de invitado. |
-| `POST` | `/auth/login` | Público | Inicia sesión con correo y contraseña. |
+| `POST` | `/auth/login` | Público | Inicia sesión con correo y contraseña. Limita los intentos fallidos (ver [Inicio de sesión](#inicio-de-sesión)). |
 | `DELETE` | `/auth/account` | Sesión | Baja lógica de la cuenta. |
 
 Alias de compatibilidad: `/auth/registro`, `/api/user/registro`, `/api/user/login`.
@@ -258,6 +280,11 @@ Alias de compatibilidad: `/auth/registro`, `/api/user/registro`, `/api/user/logi
 
 Alias de compatibilidad: `/api/rock`, `/rock/agregar`, `/rock/actualizar/:id`, `/rock/eliminar/:id`.
 
+**`/rock` y `/specimen` leen la misma tabla** (`specimen`) con los mismos filtros; se diferencian en el uso:
+
+* `/rock` es la gestión del catálogo: las altas, cambios y bajas son de administradores. Conserva el formato de respuesta de la clase (los datos van en `data` y repetidos en la raíz: `rock`, `rocks`), pagina solo si se envía `limit`, busca el detalle por id o por índice de catálogo y deja a un administrador ver las rocas desactivadas (`include_inactive=true`).
+* `/specimen` es la vista de solo lectura pensada para la aplicación móvil: formato estándar de la API (`data.specimens`), siempre paginada, solo rocas activas y con el resumen de categorías con conteo (`/specimen/categories`). No modifica nada.
+
 ### Tipos y categorías (`/type`, `/category`)
 
 | Método | Endpoint | Acceso | Descripción |
@@ -276,6 +303,7 @@ Alias de compatibilidad: `/api/rock`, `/rock/agregar`, `/rock/actualizar/:id`, `
 | `POST` | `/analysis` | Sesión | Recibe una imagen (`multipart/form-data`, campo `image`; JPEG, PNG o WebP de hasta 8 MB), la valida, la reconoce, la registra y actualiza colección, experiencia y logros. La respuesta incluye `discovery` y `unlocked_achievements`. |
 | `GET` | `/analysis` | Sesión | Historial de reconocimientos propios (paginado). |
 | `GET` | `/analysis/:id` | Sesión | Detalle de un reconocimiento (su dueño o un administrador). |
+| `GET` | `/analysis/:id/image` | Sesión | Foto del reconocimiento (solo su dueño o un administrador; `image_url` apunta aquí). |
 | `POST` | `/analysis/:id/refine` | Sesión | Envía respuestas físicas (dureza, raya, magnetismo) para refinar un reconocimiento propio. |
 
 ### Colección y progreso (`/collection`)
@@ -410,6 +438,8 @@ Las pruebas (Jest + Supertest) son herméticas: cada archivo usa su propia base 
 | [`tests/admin.test.js`](tests/admin.test.js) | Control de acceso de `/admin`, usuarios, roles, estados, estadísticas, historial y feedback. |
 | [`tests/geodex.test.js`](tests/geodex.test.js) | Cliente de GeoDex (con una respuesta real del servicio como fixture): interpretación de respuestas, pausa ante cuota agotada, memoria de fotos repetidas y respaldo heurístico. |
 | [`tests/concurrency.test.js`](tests/concurrency.test.js) | Cola de escrituras: exclusión mutua, tiempo de espera máximo y reglas de las transacciones anidadas. |
+| [`tests/login_limit.test.js`](tests/login_limit.test.js) | Límite de intentos de login: bloqueo, `Retry-After`, reinicio al ingresar, intentos simultáneos, memoria acotada, cuentas inexistentes y dirección del cliente (`TRUST_PROXY`). |
+| [`tests/analysis_photo.test.js`](tests/analysis_photo.test.js) | Fotos privadas: solo el dueño y los administradores, archivos ausentes o ilegibles, referencias fuera de la carpeta y carpetas servidas como archivos estáticos. |
 | [`tests/seeders.test.js`](tests/seeders.test.js), [`tests/migrations.test.js`](tests/migrations.test.js), [`tests/database.test.js`](tests/database.test.js) | Datos iniciales, administrador sembrado, migraciones, detección de esquemas desactualizados y la confirmación `--yes` de `db:reset` en producción. |
 | [`tests/security.test.js`](tests/security.test.js), [`tests/config.test.js`](tests/config.test.js) | Cuerpos vacíos o mal formados, errores sin detalles internos, cabeceras, secretos y configuración. |
 | [`tests/catalog.test.js`](tests/catalog.test.js), [`tests/quiz.test.js`](tests/quiz.test.js), [`tests/event.test.js`](tests/event.test.js) | Catálogo público, cuestionarios y telemetría. |
@@ -428,6 +458,8 @@ Para quien consuma la API desde la aplicación móvil:
 * **Imágenes**: el límite de subida baja de 10 MB a 8 MB y la extensión guardada depende del tipo de imagen, no del nombre del archivo.
 * **Cuestionarios**: la experiencia se acredita una vez por cuestionario (primer aprobado; un primer intento fallido paga una fracción) y las preguntas sin responder pueden enviarse como `null`.
 * **Cuenta eliminada**: sus datos personales se borran y el correo puede registrarse de nuevo.
+* **Login**: los intentos fallidos se limitan por IP y correo; al agotarlos, `POST /auth/login` responde `429` (ver [Inicio de sesión](#inicio-de-sesión)). Los correos de más de 254 caracteres se rechazan.
+* **Fotos privadas**: `/uploads/analyses/...` ya no existe; `image_url` pasa a ser `/analysis/:id/image` y requiere el token del dueño o de un administrador.
 
 ---
 

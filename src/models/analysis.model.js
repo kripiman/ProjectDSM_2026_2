@@ -2,7 +2,14 @@ const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { ANALYSIS_STATUS, REFINEMENT_STATUS, PROVIDERS } = require('../config/constants');
 
-class Analysis extends Model {}
+class Analysis extends Model {
+  /** The stored file name is internal: responses carry `image_url` only. */
+  toJSON() {
+    const values = super.toJSON();
+    delete values.image_file;
+    return values;
+  }
+}
 
 Analysis.init({
   id: {
@@ -18,9 +25,21 @@ Analysis.init({
     },
     onDelete: 'CASCADE'
   },
-  image_url: {
+  // Name of the photo in the uploads folder (rows saved by earlier versions hold the
+  // path "/uploads/analyses/<name>"; only the name is ever used). The column keeps its
+  // original name.
+  image_file: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    field: 'image_url'
+  },
+  // Photos are private: the address clients get is the endpoint that serves them to
+  // their owner and to administrators, never a file URL.
+  image_url: {
+    type: DataTypes.VIRTUAL(DataTypes.STRING, ['id']),
+    get() {
+      return `/analysis/${this.getDataValue('id')}/image`;
+    }
   },
   status: {
     type: DataTypes.STRING,

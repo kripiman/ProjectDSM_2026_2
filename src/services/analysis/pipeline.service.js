@@ -12,7 +12,7 @@ const { REFINEMENT_QUESTIONS } = require('./refinement.service');
 const { Analysis, AnalysisCandidate, Specimen, User, sequelize } = require('../../models');
 const { AppError } = require('../../utils/app_error');
 const {
-  ANALYSIS_STATUS, REFINEMENT_STATUS, PROVIDERS, ACHIEVEMENT_TRIGGERS, ERROR_CODES, UPLOAD_URL_PREFIXES
+  ANALYSIS_STATUS, REFINEMENT_STATUS, PROVIDERS, ACHIEVEMENT_TRIGGERS, ERROR_CODES
 } = require('../../config/constants');
 
 // Confidence band in which the assisted adjudicator is asked to disambiguate.
@@ -188,7 +188,7 @@ class PipelineService {
       await Analysis.create({
         id: analysisId,
         user_id: userId,
-        image_url: `${UPLOAD_URL_PREFIXES.ANALYSES}/${storedFilename}`,
+        image_file: storedFilename,
         status: ANALYSIS_STATUS.COMPLETED,
         is_specimen: true,
         extracted_features: features,

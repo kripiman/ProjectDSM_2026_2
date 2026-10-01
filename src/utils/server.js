@@ -23,6 +23,7 @@ class Server {
 
   middlewares() {
     this.app.disable('x-powered-by');
+    this.app.set('trust proxy', env.TRUST_PROXY);
     this.app.use(cors());
     if (!env.isTest) {
       this.app.use(morgan('dev'));
@@ -39,8 +40,9 @@ class Server {
     });
     this.app.use(rejectNullBytes);
 
-    // Uploaded images. Files are served as-is, never sniffed into another content
-    // type. The two upload folders are mounted from their configured locations.
+    // Catalog pictures are public. They are served as-is, never sniffed into another
+    // content type. The photos of recognitions are not mounted here: they are private
+    // and only GET /analysis/:id/image sends them.
     const staticOptions = {
       index: false,
       dotfiles: 'ignore',
@@ -48,9 +50,7 @@ class Server {
         res.setHeader('X-Content-Type-Options', 'nosniff');
       }
     };
-    this.app.use(UPLOAD_URL_PREFIXES.ANALYSES, express.static(path.resolve(process.cwd(), env.UPLOAD_DIR), staticOptions));
     this.app.use(UPLOAD_URL_PREFIXES.SPECIMENS, express.static(path.resolve(process.cwd(), env.SPECIMEN_UPLOAD_DIR), staticOptions));
-    this.app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), staticOptions));
   }
 
   routes() {

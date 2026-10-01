@@ -3,10 +3,24 @@ const PipelineService = require('../services/analysis/pipeline.service');
 const AchievementService = require('../services/gamification/achievement.service');
 const RefinementService = require('../services/analysis/refinement.service');
 const { Analysis, AnalysisCandidate, AnalysisRefinement, Specimen, sequelize } = require('../models');
+const env = require('../config/env');
 const { successResponse } = require('../utils/response_formatter');
 const { AppError } = require('../utils/app_error');
 const { ERROR_CODES, USER_ROLES, ACHIEVEMENT_TRIGGERS, REFINEMENT_STATUS } = require('../config/constants');
 const { buildPagination, toPageWindow } = require('../utils/pagination');
+const { sendStoredImage } = require('../utils/uploads');
+
+/**
+ * Recognitions are private to their owner; administrators may review them.
+ */
+const assertCanView = (analysis, id, user) => {
+  if (!analysis) {
+    throw new AppError(404, `Analysis with ID '${id}' not found`, ERROR_CODES.NOT_FOUND);
+  }
+  if (analysis.user_id !== user.id && user.role !== USER_ROLES.ADMIN) {
+    throw new AppError(403, 'You do not have access to this analysis', ERROR_CODES.FORBIDDEN);
+  }
+};
 
 const analyzeImage = async (req, res, next) => {
   try {
@@ -81,16 +95,26 @@ const getAnalysisById = async (req, res, next) => {
       ]
     });
 
-    if (!analysis) {
-      throw new AppError(404, `Analysis with ID '${id}' not found`, ERROR_CODES.NOT_FOUND);
-    }
-
-    // Recognitions are private to their owner; administrators may review them.
-    if (analysis.user_id !== req.user.id && req.user.role !== USER_ROLES.ADMIN) {
-      throw new AppError(403, 'You do not have access to this analysis', ERROR_CODES.FORBIDDEN);
-    }
+    assertCanView(analysis, id, req.user);
 
     return successResponse(res, analysis, 'Analysis details retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Sends the photo of a recognition. Photos are not served as public files: the client
+ * asks for them with its Bearer token like for any other call, and only the owner and
+ * administrators get them.
+ */
+const getAnalysisImage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const analysis = await Analysis.findByPk(id, { attributes: ['id', 'user_id', 'image_file'] });
+    assertCanView(analysis, id, req.user);
+
+    await sendStoredImage(res, env.UPLOAD_DIR, analysis.image_file);
   } catch (error) {
     next(error);
   }
@@ -174,5 +198,6 @@ module.exports = {
   analyzeImage,
   listMyAnalyses,
   getAnalysisById,
+  getAnalysisImage,
   refineAnalysis
 };

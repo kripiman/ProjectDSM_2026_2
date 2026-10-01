@@ -10,6 +10,10 @@ const SessionService = require('../services/session.service');
 const UserService = require('../services/user.service');
 const { User, UserPreference, sequelize } = require('../models');
 
+// Checked against when the email is unknown, so that answer takes as long as one for a
+// real account and the response time does not reveal which emails are registered.
+const UNKNOWN_ACCOUNT_HASH = bcrypt.hashSync(uuidv4(), env.BCRYPT_ROUNDS);
+
 const createAnonymousSession = async (req, res, next) => {
   try {
     const userId = uuidv4();
@@ -135,12 +139,8 @@ const login = async (req, res, next) => {
     const { email, password } = req.body;
 
     const user = await User.scope('withPassword').findOne({ where: { email } });
-    if (!user || !user.password_hash) {
-      throw new AppError(401, 'Invalid email or password', ERROR_CODES.UNAUTHORIZED);
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
+    const isMatch = await bcrypt.compare(password, (user && user.password_hash) || UNKNOWN_ACCOUNT_HASH);
+    if (!user || !user.password_hash || !isMatch) {
       throw new AppError(401, 'Invalid email or password', ERROR_CODES.UNAUTHORIZED);
     }
 

@@ -84,9 +84,9 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 // Score (percentage) a quiz attempt needs to be passed.
 const QUIZ_PASSING_SCORE = 60;
 
-// Public URL prefixes under which uploaded images are served.
+// Public URL prefixes under which uploaded images are served. The photos of
+// recognitions are private and have none: GET /analysis/:id/image sends them.
 const UPLOAD_URL_PREFIXES = {
-  ANALYSES: '/uploads/analyses',
   SPECIMENS: '/uploads/specimens'
 };
 
@@ -98,6 +98,7 @@ const ERROR_CODES = {
   CONFLICT: '409_CONFLICT',
   VALIDATION_ERROR: '400_VALIDATION_ERROR',
   GUEST_LIMIT_REACHED: 'GUEST_LIMIT_REACHED',
+  TOO_MANY_LOGIN_ATTEMPTS: 'TOO_MANY_LOGIN_ATTEMPTS',
   INTERNAL_ERROR: '500_INTERNAL_SERVER_ERROR'
 };
 

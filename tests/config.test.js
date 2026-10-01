@@ -133,6 +133,12 @@ describe('The template (.env.example)', () => {
     expect(template.OPENAI_API_KEY).toBe('');
   });
 
+  test('ships the login limits that are also the defaults', () => {
+    const defaults = loadEnv({ NODE_ENV: 'test' });
+    expect(Number(template.LOGIN_MAX_ATTEMPTS)).toBe(defaults.LOGIN_MAX_ATTEMPTS);
+    expect(Number(template.LOGIN_LOCK_MINUTES)).toBe(defaults.LOGIN_LOCK_MINUTES);
+  });
+
   test('loads into a working configuration', () => {
     const env = loadEnv({ NODE_ENV: 'development', ...Object.fromEntries(Object.entries(template).filter(([, value]) => value !== '')) });
     expect(env.PORT).toBe(Number(template.PORT));
@@ -160,6 +166,25 @@ describe('Other settings', () => {
     expect(loadEnv({ NODE_ENV: 'test' }).BCRYPT_ROUNDS).toBe(4);
     expect(loadEnv({ NODE_ENV: 'development', JWT_SECRET: 'x' }).BCRYPT_ROUNDS).toBe(10);
     expect(loadEnv({ NODE_ENV: 'development', JWT_SECRET: 'x', BCRYPT_ROUNDS: '12' }).BCRYPT_ROUNDS).toBe(12);
+  });
+
+  test('failed logins are limited to 3 per 15 minutes unless configured with whole numbers of at least 1', () => {
+    expect(loadEnv({ NODE_ENV: 'test' })).toMatchObject({ LOGIN_MAX_ATTEMPTS: 3, LOGIN_LOCK_MINUTES: 15 });
+    expect(loadEnv({ NODE_ENV: 'test', LOGIN_MAX_ATTEMPTS: '5', LOGIN_LOCK_MINUTES: '1' }))
+      .toMatchObject({ LOGIN_MAX_ATTEMPTS: 5, LOGIN_LOCK_MINUTES: 1 });
+
+    for (const invalid of ['0', '-2', '2.5', 'abc', '']) {
+      expect([invalid, loadEnv({ NODE_ENV: 'test', LOGIN_MAX_ATTEMPTS: invalid, LOGIN_LOCK_MINUTES: invalid })])
+        .toEqual([invalid, expect.objectContaining({ LOGIN_MAX_ATTEMPTS: 3, LOGIN_LOCK_MINUTES: 15 })]);
+    }
+  });
+
+  test('trust proxy is off unless configured, and understands booleans, proxy counts and Express values', () => {
+    expect(loadEnv({ NODE_ENV: 'test' }).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ NODE_ENV: 'test', TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ NODE_ENV: 'test', TRUST_PROXY: 'true' }).TRUST_PROXY).toBe(true);
+    expect(loadEnv({ NODE_ENV: 'test', TRUST_PROXY: ' 2 ' }).TRUST_PROXY).toBe(2);
+    expect(loadEnv({ NODE_ENV: 'test', TRUST_PROXY: 'loopback, 10.0.0.0/8' }).TRUST_PROXY).toBe('loopback, 10.0.0.0/8');
   });
 
   test('the administrator email is normalized and there are no built-in credentials', () => {

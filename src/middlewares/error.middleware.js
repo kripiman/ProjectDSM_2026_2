@@ -6,7 +6,7 @@ const { removeUploadedFiles } = require('../utils/uploads');
 
 const INTERNAL_ERROR_MESSAGE = 'Internal server error';
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = async (err, req, res, next) => {
   const reportedStatus = Number(err.statusCode || err.status);
   let statusCode = Number.isInteger(reportedStatus) && reportedStatus >= 400 && reportedStatus < 600 ? reportedStatus : 500;
   let message = err.message || INTERNAL_ERROR_MESSAGE;
@@ -61,8 +61,9 @@ const errorHandler = (err, req, res, next) => {
     message = statusCode >= 500 ? INTERNAL_ERROR_MESSAGE : (message || INTERNAL_ERROR_MESSAGE);
   }
 
-  // A rejected request must not leave its uploaded image behind.
-  removeUploadedFiles(req).catch(() => {});
+  // A rejected request must not leave its uploaded image behind. It is removed before the
+  // answer goes out, so whoever sees the error can rely on the file being gone.
+  await removeUploadedFiles(req);
 
   return errorResponse(res, message, statusCode, errorCode, details);
 };

@@ -49,6 +49,30 @@ const resolveJwtExpiry = (value) => {
   return /^\d+$/.test(configured) ? Number(configured) : configured;
 };
 
+/** A whole number of at least 1, or the fallback when the variable is missing or not one. */
+const positiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : fallback;
+};
+
+/**
+ * Express's "trust proxy" setting: whether the client address comes from the
+ * X-Forwarded-For header written by a reverse proxy. Off unless configured, because
+ * a client that reaches the server directly could otherwise choose its own address.
+ * Accepts `true`, `false`, the number of proxies in front of the server, or any value
+ * Express understands (`loopback`, a subnet, a comma-separated list).
+ */
+const resolveTrustProxy = (value) => {
+  const configured = (value || '').trim();
+  if (configured === '' || configured === 'false') {
+    return false;
+  }
+  if (configured === 'true') {
+    return true;
+  }
+  return /^\d+$/.test(configured) ? Number(configured) : configured;
+};
+
 if (isProduction && process.env.ADMIN_PASSWORD === EXAMPLE_ADMIN_PASSWORD) {
   throw new Error('ADMIN_PASSWORD still has the example value from .env.example; define a real password when NODE_ENV=production');
 }
@@ -64,6 +88,9 @@ const env = {
   JWT_SECRET: resolveJwtSecret(),
   JWT_EXPIRES_IN: resolveJwtExpiry(process.env.JWT_EXPIRES_IN),
   BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS, 10) || (isTest ? 4 : 10),
+  LOGIN_MAX_ATTEMPTS: positiveInteger(process.env.LOGIN_MAX_ATTEMPTS, 3),
+  LOGIN_LOCK_MINUTES: positiveInteger(process.env.LOGIN_LOCK_MINUTES, 15),
+  TRUST_PROXY: resolveTrustProxy(process.env.TRUST_PROXY),
   ADMIN_EMAIL: (process.env.ADMIN_EMAIL || '').trim().toLowerCase(),
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
   ADMIN_NAME: process.env.ADMIN_NAME || 'Administrator',

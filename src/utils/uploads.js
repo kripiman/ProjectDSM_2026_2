@@ -1,5 +1,13 @@
 const fs = require('fs');
 const path = require('path');
+const { AppError } = require('./app_error');
+const { ERROR_CODES } = require('../config/constants');
+
+// Private images are kept out of shared caches and never sniffed into another type.
+const PRIVATE_IMAGE_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Cache-Control': 'private, max-age=86400'
+};
 
 const collectUploadedFiles = (req) => {
   const files = [];
@@ -43,7 +51,56 @@ const removeStoredImage = async (url, { urlPrefix, directory }) => {
   await fs.promises.unlink(file).catch(() => {});
 };
 
+/**
+ * Sends a stored image as a private response. Only the file name of `stored` is used,
+ * so a stored reference can never point outside `directory`. A missing file answers
+ * 404; a file that exists but cannot be read is a server error, which the error handler
+ * reports without showing where files are kept.
+ * @param {import('express').Response} res
+ * @param {string} directory Uploads folder, absolute or relative to the working directory.
+ * @param {string|null|undefined} stored Stored reference: the file name, or an older "/uploads/..." path.
+ * @returns {Promise<void>}
+ */
+const sendStoredImage = async (res, directory, stored) => {
+  const root = path.resolve(process.cwd(), directory);
+  const filename = typeof stored === 'string' ? path.basename(stored) : '';
+  const notAvailable = () => new AppError(404, 'The image is no longer available', ERROR_CODES.NOT_FOUND);
+
+  if (filename === '' || filename.startsWith('.')) {
+    throw notAvailable();
+  }
+
+  // Checked before sending: once `send` has described the file in the headers, a failure
+  // can no longer become a clean JSON answer.
+  const file = path.join(root, filename);
+  try {
+    await fs.promises.access(file, fs.constants.R_OK);
+    if (!(await fs.promises.stat(file)).isFile()) {
+      throw notAvailable();
+    }
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw error.code === 'ENOENT' || error.code === 'ENOTDIR' ? notAvailable() : error;
+  }
+
+  await new Promise((resolve, reject) => {
+    res.sendFile(filename, { root, dotfiles: 'deny', headers: PRIVATE_IMAGE_HEADERS }, (error) => {
+      if (!error || error.code === 'ECONNABORTED') {
+        resolve(); // sent, or the client went away
+      } else if (res.headersSent) {
+        res.destroy(); // the body was cut short: end the connection rather than leave the client waiting
+        resolve();
+      } else {
+        reject(error.code === 'ENOENT' || error.status === 404 ? notAvailable() : error); // removed after the check above
+      }
+    });
+  });
+};
+
 module.exports = {
   removeUploadedFiles,
-  removeStoredImage
+  removeStoredImage,
+  sendStoredImage
 };

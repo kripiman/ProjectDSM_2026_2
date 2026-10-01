@@ -5,11 +5,15 @@ const REQUIRED_CREDENTIALS = 'Email and password are required';
 // bcrypt only considers the first 72 bytes of a password.
 const MAX_PASSWORD_LENGTH = 72;
 
+// The longest address SMTP allows.
+const MAX_EMAIL_LENGTH = 254;
+
 const emailField = z
   .string({ error: REQUIRED_CREDENTIALS })
   .trim()
   .toLowerCase()
-  .email('Invalid email address');
+  .email('Invalid email address')
+  .max(MAX_EMAIL_LENGTH, `Email must be at most ${MAX_EMAIL_LENGTH} characters`);
 
 const registerSchema = z.preprocess((raw) => {
   if (typeof raw !== 'object' || raw === null) return raw;

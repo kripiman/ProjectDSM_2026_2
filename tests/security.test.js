@@ -1,7 +1,10 @@
+const fs = require('fs');
 const http = require('http');
 const request = require('supertest');
 const { Specimen, Feedback } = require('../src/models');
-const { createApp, auth, registerUser, createGuest, createAdmin } = require('./helpers');
+const { errorHandler } = require('../src/middlewares/error.middleware');
+const { AppError } = require('../src/utils/app_error');
+const { createApp, auth, registerUser, createGuest, createAdmin, makeImage } = require('./helpers');
 
 const app = createApp();
 
@@ -83,6 +86,22 @@ describe('Request bodies', () => {
 describe('Error handling', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  test('the file of a rejected upload is deleted before the error answer goes out', async () => {
+    let finishDeleting;
+    jest.spyOn(fs.promises, 'unlink').mockImplementationOnce(() => new Promise((resolve) => { finishDeleting = resolve; }));
+    const answer = jest.fn();
+    const res = { status: jest.fn().mockReturnValue({ json: answer }) };
+
+    const handling = errorHandler(new AppError(400, 'rejected'), { file: { path: makeImage(600) } }, res, jest.fn());
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(answer).not.toHaveBeenCalled(); // still waiting for the file to go
+
+    finishDeleting();
+    await handling;
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(answer).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: 'rejected' }));
   });
 
   test('database failures are reported as a generic 500 without internal details', async () => {
@@ -169,11 +188,12 @@ describe('HTTP hardening', () => {
         '/uploads/%2e%2e/.env',
         '/uploads/..%2f.env',
         '/uploads/%2e%2e%2f.env',
-        '/uploads/analyses/../../.env',
-        '/uploads/analyses/..%2f..%2f.env',
+        '/uploads/specimens/../../.env',
+        '/uploads/specimens/..%2f..%2f.env',
         '/uploads/specimens/%2e%2e%2f%2e%2e%2fpackage.json',
+        '/uploads/specimens/%2e%2e/%2e%2e/package.json',
         '/uploads/',
-        '/uploads/analyses/',
+        '/uploads/specimens/',
         '/uploads/.env'
       ];
 

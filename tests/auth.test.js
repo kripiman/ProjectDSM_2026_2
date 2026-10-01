@@ -204,6 +204,14 @@ describe('Registration rules', () => {
     await request(app).post('/auth/register').expect(400);
   });
 
+  test('emails above the 254 characters SMTP allows are rejected', async () => {
+    const tooLong = `${'a'.repeat(250)}@example.com`;
+
+    const register = await request(app).post('/auth/register').send({ email: tooLong, password: TEST_PASSWORD }).expect(400);
+    expect(register.body.message).toMatch(/at most 254 characters/);
+    await request(app).post('/auth/login').send({ email: tooLong, password: TEST_PASSWORD }).expect(400);
+  });
+
   test('duplicated emails and user names are rejected', async () => {
     const first = await registerUser(app, { userName: `dup_${Date.now()}` });
 

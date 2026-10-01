@@ -3,10 +3,13 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 const env = require('../config/env');
-const { connectDB } = require('../config/database');
+const logger = require('./logger');
+const { initDatabase } = require('../database/init');
 const apiRouter = require('../routers/api.router');
 const { errorHandler } = require('../middlewares/error.middleware');
-const { successResponse } = require('./response_formatter');
+const { rejectNullBytes } = require('../middlewares/null_bytes.middleware');
+const { ERROR_CODES, UPLOAD_URL_PREFIXES } = require('../config/constants');
+const { successResponse, errorResponse } = require('./response_formatter');
 
 class Server {
   constructor() {
@@ -19,16 +22,35 @@ class Server {
   }
 
   middlewares() {
+    this.app.disable('x-powered-by');
     this.app.use(cors());
-    if (env.NODE_ENV !== 'test') {
+    if (!env.isTest) {
       this.app.use(morgan('dev'));
     }
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
 
-    // Static uploads directory for images
-    const uploadsPath = path.resolve(process.cwd(), 'uploads');
-    this.app.use('/uploads', express.static(uploadsPath));
+    // Express 5 leaves `req.body` undefined when a request carries no parsable body.
+    this.app.use((req, res, next) => {
+      if (req.body === undefined) {
+        req.body = {};
+      }
+      next();
+    });
+    this.app.use(rejectNullBytes);
+
+    // Uploaded images. Files are served as-is, never sniffed into another content
+    // type. The two upload folders are mounted from their configured locations.
+    const staticOptions = {
+      index: false,
+      dotfiles: 'ignore',
+      setHeaders: (res) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      }
+    };
+    this.app.use(UPLOAD_URL_PREFIXES.ANALYSES, express.static(path.resolve(process.cwd(), env.UPLOAD_DIR), staticOptions));
+    this.app.use(UPLOAD_URL_PREFIXES.SPECIMENS, express.static(path.resolve(process.cwd(), env.SPECIMEN_UPLOAD_DIR), staticOptions));
+    this.app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), staticOptions));
   }
 
   routes() {
@@ -45,13 +67,8 @@ class Server {
     this.app.use('/', apiRouter);
 
     // 404 Fallback
-    this.app.use((req, res, next) => {
-      res.status(404).json({
-        success: false,
-        statusCode: 404,
-        errorCode: '404_NOT_FOUND',
-        message: `Endpoint ${req.method} ${req.originalUrl} not found`
-      });
+    this.app.use((req, res) => {
+      return errorResponse(res, `Endpoint ${req.method} ${req.originalUrl} not found`, 404, ERROR_CODES.NOT_FOUND);
     });
   }
 
@@ -60,10 +77,12 @@ class Server {
   }
 
   async start() {
-    await connectDB();
+    // Connects, creates any missing table and seeds the reference data (roles,
+    // taxonomy, administrator, ...). Every step is idempotent.
+    await initDatabase(false);
     return new Promise((resolve) => {
       const serverInstance = this.app.listen(this.port, () => {
-        console.log(`[Server] ProjectDSM backend running on port ${this.port} in ${env.NODE_ENV} mode`);
+        logger.info(`[Server] ProjectDSM backend running on port ${this.port} in ${env.NODE_ENV} mode`);
         resolve(serverInstance);
       });
     });

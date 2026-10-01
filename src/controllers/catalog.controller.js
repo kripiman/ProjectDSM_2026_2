@@ -1,56 +1,20 @@
-const { Op } = require('sequelize');
-const { Specimen } = require('../models');
+const { fn, col } = require('sequelize');
+const { Specimen, Category } = require('../models');
+const CatalogService = require('../services/catalog.service');
 const { successResponse } = require('../utils/response_formatter');
-const { AppError } = require('../middlewares/error.middleware');
-const { ERROR_CODES, SPECIMEN_CATEGORIES } = require('../config/constants');
+const { AppError } = require('../utils/app_error');
+const { ERROR_CODES } = require('../config/constants');
+const { buildPagination } = require('../utils/pagination');
 
 const listSpecimens = async (req, res, next) => {
   try {
-    const {
-      category,
-      rarity,
-      magnetism,
-      q,
-      page = 1,
-      limit = 20
-    } = req.query;
+    const { page, limit, ...filters } = req.validatedQuery;
 
-    const where = { is_active: true };
-
-    if (category) {
-      where.category = category;
-    }
-
-    if (rarity) {
-      where.rarity = rarity;
-    }
-
-    if (magnetism !== undefined) {
-      where.magnetism = magnetism === 'true' || magnetism === '1';
-    }
-
-    if (q) {
-      where[Op.or] = [
-        { name_es: { [Op.like]: `%${q}%` } },
-        { name_en: { [Op.like]: `%${q}%` } },
-        { scientific_name: { [Op.like]: `%${q}%` } },
-        { chemical_formula: { [Op.like]: `%${q}%` } }
-      ];
-    }
-
-    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-    const { count, rows } = await Specimen.findAndCountAll({
-      where,
-      limit: parseInt(limit, 10),
-      offset,
-      order: [['name_es', 'ASC']]
-    });
+    const { total, rows } = await CatalogService.list(filters, { page, limit });
 
     return successResponse(res, {
-      total: count,
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
-      total_pages: Math.ceil(count / parseInt(limit, 10)),
+      total,
+      ...buildPagination({ page, limit }, total),
       specimens: rows
     }, 'Specimens retrieved successfully');
   } catch (error) {
@@ -62,7 +26,8 @@ const getSpecimenById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const specimen = await Specimen.findOne({
-      where: { id, is_active: true }
+      where: { id, is_active: true },
+      include: CatalogService.relations()
     });
 
     if (!specimen) {
@@ -77,16 +42,23 @@ const getSpecimenById = async (req, res, next) => {
 
 const getCategories = async (req, res, next) => {
   try {
-    const categories = Object.values(SPECIMEN_CATEGORIES);
-    const summary = [];
+    const [categories, counts] = await Promise.all([
+      Category.findAll({ order: [['name', 'ASC']] }),
+      Specimen.findAll({
+        where: { is_active: true },
+        attributes: ['category_id', [fn('COUNT', col('id')), 'total']],
+        group: ['category_id'],
+        raw: true
+      })
+    ]);
 
-    for (const cat of categories) {
-      const count = await Specimen.count({ where: { category: cat, is_active: true } });
-      summary.push({
-        category: cat,
-        total_specimens: count
-      });
-    }
+    const totals = new Map(counts.map((row) => [row.category_id, Number(row.total)]));
+    const summary = categories.map((category) => ({
+      category_id: category.id,
+      category: category.name,
+      description: category.description,
+      total_specimens: totals.get(category.id) || 0
+    }));
 
     return successResponse(res, summary, 'Taxonomy categories retrieved successfully');
   } catch (error) {
